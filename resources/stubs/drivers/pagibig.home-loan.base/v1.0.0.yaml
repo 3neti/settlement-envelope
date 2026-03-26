@@ -1,0 +1,149 @@
+driver:
+  id: "pagibig.home-loan.base"
+  version: "1.0.0"
+  title: "Pag-IBIG Home Loan Base"
+  description: "Base driver for Pag-IBIG Fund home loan take-out"
+  domain: "housing_finance"
+  issuer_type: "developer"
+
+payload:
+  schema:
+    id: "pagibig.home-loan.base.v1"
+    format: "json_schema"
+    inline:
+      type: "object"
+      properties:
+        borrower:
+          type: "object"
+          properties:
+            full_name:
+              type: "string"
+            mid:
+              type: "string"
+              description: "Pag-IBIG MID number"
+          required: ["full_name", "mid"]
+        loan:
+          type: "object"
+          properties:
+            tcp:
+              type: "number"
+            amount_requested:
+              type: "number"
+          required: ["tcp", "amount_requested"]
+      required: ["borrower", "loan"]
+  storage:
+    mode: "versioned"
+    patch_strategy: "merge"
+
+documents:
+  registry:
+    - type: "PAGIBIG_MID"
+      title: "Pag-IBIG MID / Membership Proof"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 10
+      multiple: false
+
+checklist:
+  template:
+    - key: "pagibig_mid_proof"
+      label: "Pag-IBIG MID / Membership Proof uploaded"
+      kind: "document"
+      doc_type: "PAGIBIG_MID"
+      required: true
+      review: "required"
+    - key: "membership_verified_signal"
+      label: "Membership verified"
+      kind: "signal"
+      signal_key: "membership_verified"
+      required: true
+      review: "none"
+    - key: "pagibig_eligibility_confirmed_signal"
+      label: "Pag-IBIG eligibility confirmed"
+      kind: "signal"
+      signal_key: "pagibig_eligibility_confirmed"
+      required: true
+      review: "none"
+    - key: "appraisal_completed_signal"
+      label: "Appraisal completed"
+      kind: "signal"
+      signal_key: "appraisal_completed"
+      required: true
+      review: "none"
+    - key: "credit_approved_signal"
+      label: "Credit approved"
+      kind: "signal"
+      signal_key: "credit_approved"
+      required: true
+      review: "none"
+    - key: "takeout_authorized_signal"
+      label: "Take-out authorized"
+      kind: "signal"
+      signal_key: "takeout_authorized"
+      required: true
+      review: "none"
+
+signals:
+  definitions:
+    - key: "membership_verified"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+    - key: "pagibig_eligibility_confirmed"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+    - key: "appraisal_completed"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+    - key: "credit_approved"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+    - key: "takeout_authorized"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+
+gates:
+  definitions:
+    - key: "payload_valid"
+      rule: "payload.valid == true"
+    - key: "required_present"
+      rule: "checklist.required_present == true"
+    - key: "required_accepted"
+      rule: "checklist.required_accepted == true"
+    - key: "pagibig_membership_ok"
+      rule: "signal.membership_verified == true"
+    - key: "pagibig_eligibility_ok"
+      rule: "signal.pagibig_eligibility_confirmed == true"
+    - key: "pagibig_appraisal_done"
+      rule: "signal.appraisal_completed == true"
+    - key: "approvals_ready"
+      rule: "signal._all_satisfied == true"
+    - key: "evidence_ready"
+      rule: "gate.payload_valid && gate.required_accepted"
+    - key: "settleable"
+      rule: "gate.evidence_ready && gate.pagibig_membership_ok && gate.pagibig_eligibility_ok && gate.pagibig_appraisal_done && signal.takeout_authorized && !checklist.has_rejected"
+
+audit:
+  enabled: true
+  capture:
+    - "payload_patch"
+    - "attachment_upload"
+    - "attachment_review"
+    - "signal_set"
+    - "gate_change"
+    - "status_change"
+
+manifest:
+  enabled: true
+  includes:
+    payload_hash: true
+    attachments_hashes: true
+    envelope_fingerprint: true

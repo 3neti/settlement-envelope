@@ -1,0 +1,140 @@
+# =============================================================================
+# Redemption Full Inputs Driver
+# =============================================================================
+# Extends: redemption.base@1.0.0
+#
+# Demo driver that accepts ALL possible form flow inputs for testing.
+# Adds KYC fields and documents on top of the base redemption driver.
+#
+# Inherited from base:
+#   - redeemer, wallet, location payload sections
+#   - SELFIE, SIGNATURE, MAP_SNAPSHOT documents and mappings
+#   - Basic checklist and gates
+#
+# Added by this driver:
+#   - KYC payload section and mappings
+#   - KYC document type (ID_CARD) and checklist item
+#   - Extended redeemer fields (reference_code, gross_monthly_income)
+# =============================================================================
+
+extends:
+  - "redemption.base@1.0.0"
+
+driver:
+  id: "redemption.full-inputs"
+  version: "1.0.0"
+  title: "Full Inputs Redemption"
+  description: "Demo driver accepting all form flow inputs (bio, KYC, location, selfie, signature)"
+
+# -----------------------------------------------------------------------------
+# Extended Payload Schema - Add KYC section
+# -----------------------------------------------------------------------------
+payload:
+  schema:
+    id: "redemption.full-inputs.v1"
+    inline:
+      type: "object"
+      additionalProperties: true
+      properties:
+        redeemer:
+          type: "object"
+          properties:
+            name: { type: "string" }
+            birth_date: { type: "string" }
+            address: { type: "string" }
+            email: { type: "string" }
+            mobile: { type: "string" }
+            reference_code: { type: "string" }
+            gross_monthly_income: { type: "number" }
+        kyc:
+          type: "object"
+          properties:
+            status: { type: "string" }
+            transaction_id: { type: "string" }
+            id_type: { type: "string" }
+            id_number: { type: "string" }
+            verified_name: { type: "string" }
+            verified_birth_date: { type: "string" }
+            verified_address: { type: "string" }
+            nationality: { type: "string" }
+            # Image URLs from HyperVerge
+            id_card_full_url: { type: "string" }
+            id_card_cropped_url: { type: "string" }
+            selfie_url: { type: "string" }
+
+# -----------------------------------------------------------------------------
+# Extended Documents - Add KYC document types
+# -----------------------------------------------------------------------------
+documents:
+  registry:
+    # KYC documents (SELFIE, SIGNATURE, MAP_SNAPSHOT inherited from base)
+    - type: "ID_CARD"
+      title: "KYC ID Card"
+      allowed_mimes: ["image/jpeg", "image/png"]
+      max_size_mb: 5
+      multiple: false
+
+# -----------------------------------------------------------------------------
+# Extended Checklist - Add document checklist items
+# -----------------------------------------------------------------------------
+checklist:
+  template:
+    # redeemer_info inherited from base
+    - key: "id_card_doc"
+      label: "KYC ID Card"
+      kind: "document"
+      doc_type: "ID_CARD"
+      required: false
+      review: "none"
+    - key: "selfie_doc"
+      label: "Selfie Photo"
+      kind: "document"
+      doc_type: "SELFIE"
+      required: false
+      review: "none"
+    - key: "signature_doc"
+      label: "Digital Signature"
+      kind: "document"
+      doc_type: "SIGNATURE"
+      required: false
+      review: "none"
+    - key: "map_doc"
+      label: "Location Map"
+      kind: "document"
+      doc_type: "MAP_SNAPSHOT"
+      required: false
+      review: "none"
+
+# =============================================================================
+# Extended Form Flow Mapping
+# =============================================================================
+# Adds KYC section and extended redeemer fields.
+# Base mappings (redeemer core, wallet, location, SELFIE, SIGNATURE, MAP) inherited.
+# =============================================================================
+form_flow_mapping:
+  payload:
+    # Override redeemer to add extra fields (mobile, name, etc. inherited)
+    redeemer:
+      reference_code: "bio_fields.reference_code"
+      gross_monthly_income: "bio_fields.gross_monthly_income"
+    # Add KYC section (not in base)
+    kyc:
+      status: "kyc_verification.status"
+      transaction_id: "kyc_verification.transaction_id"
+      id_type: "kyc_verification.id_type"
+      id_number: "kyc_verification.id_number"
+      verified_name: "kyc_verification.name"
+      verified_birth_date: "kyc_verification.date_of_birth"
+      verified_address: "kyc_verification.address"
+      nationality: "kyc_verification.nationality"
+      # Image URLs from HyperVerge
+      id_card_full_url: "kyc_verification.id_card_full"
+      id_card_cropped_url: "kyc_verification.id_card_cropped"
+      selfie_url: "kyc_verification.selfie"
+
+  attachments:
+    # KYC attachments (SELFIE, SIGNATURE, MAP_SNAPSHOT inherited from base)
+    ID_CARD:
+      source: "kyc_verification.id_card_full | kyc.id_card_full_url"
+      filename: "id_card.jpg"
+      mime: "image/jpeg"

@@ -1,0 +1,300 @@
+driver:
+  id: "bank.home-loan.base"
+  version: "1.0.0"
+  title: "Bank Home Loan Base"
+  description: "Base driver for bank home loan take-out with standard employed borrower"
+  domain: "housing_finance"
+  issuer_type: "developer"
+
+payload:
+  schema:
+    id: "bank.home-loan.base.v1"
+    format: "json_schema"
+    inline:
+      type: "object"
+      properties:
+        borrower:
+          type: "object"
+          properties:
+            full_name:
+              type: "string"
+              description: "Borrower's full legal name"
+          required: ["full_name"]
+        loan:
+          type: "object"
+          properties:
+            tcp:
+              type: "number"
+              description: "Total Contract Price"
+            amount_requested:
+              type: "number"
+              description: "Loan amount requested"
+          required: ["tcp", "amount_requested"]
+        property:
+          type: "object"
+          properties:
+            code:
+              type: "string"
+              description: "Property/unit reference code"
+          required: ["code"]
+        developer:
+          type: "object"
+          properties:
+            code:
+              type: "string"
+              description: "Developer organization code"
+          required: ["code"]
+      required: ["borrower", "loan", "property", "developer"]
+  storage:
+    mode: "versioned"
+    patch_strategy: "merge"
+
+documents:
+  registry:
+    - type: "BORROWER_ID_PRIMARY"
+      title: "Borrower Government ID (Primary)"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 10
+      multiple: false
+    - type: "CENOMAR"
+      title: "CENOMAR / Proof of Single Status"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 10
+      multiple: false
+    - type: "PROOF_OF_RESIDENCE"
+      title: "Proof of Residence (utility bill/barangay cert)"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 10
+      multiple: false
+    - type: "COE"
+      title: "Certificate of Employment"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 10
+      multiple: false
+    - type: "PAYSLIPS"
+      title: "Payslips (Latest 3 months)"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 10
+      multiple: true
+    - type: "BIR_2316"
+      title: "BIR 2316 / ITR"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 10
+      multiple: false
+    - type: "CONTRACT_TO_SELL"
+      title: "Contract to Sell"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 15
+      multiple: false
+    - type: "TITLE_DOCUMENT"
+      title: "Title Document (TCT/CCT/Mother Title)"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 20
+      multiple: false
+    - type: "TAX_DECLARATION"
+      title: "Tax Declaration"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 15
+      multiple: false
+    - type: "APPRAISAL_REPORT"
+      title: "Appraisal Report"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 20
+      multiple: false
+    - type: "LICENSE_TO_SELL"
+      title: "License to Sell (DHSUD/HLURB)"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 20
+      multiple: false
+    - type: "OCCUPANCY_PERMIT"
+      title: "Occupancy Permit"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 20
+      multiple: false
+
+checklist:
+  template:
+    # Payload fields
+    - key: "borrower_full_name"
+      label: "Borrower name captured"
+      kind: "payload_field"
+      payload_pointer: "/borrower/full_name"
+      required: true
+      review: "none"
+    - key: "tcp"
+      label: "Total Contract Price declared"
+      kind: "payload_field"
+      payload_pointer: "/loan/tcp"
+      required: true
+      review: "none"
+    - key: "loan_amount_requested"
+      label: "Loan amount requested"
+      kind: "payload_field"
+      payload_pointer: "/loan/amount_requested"
+      required: true
+      review: "none"
+    - key: "property_code"
+      label: "Property reference provided"
+      kind: "payload_field"
+      payload_pointer: "/property/code"
+      required: true
+      review: "none"
+    - key: "developer_code"
+      label: "Developer reference provided"
+      kind: "payload_field"
+      payload_pointer: "/developer/code"
+      required: true
+      review: "none"
+    # Documents
+    - key: "borrower_id_primary"
+      label: "Borrower Government ID uploaded"
+      kind: "document"
+      doc_type: "BORROWER_ID_PRIMARY"
+      required: true
+      review: "required"
+    - key: "cenomar_or_single_status"
+      label: "CENOMAR / Single status proof uploaded"
+      kind: "document"
+      doc_type: "CENOMAR"
+      required: false
+      review: "required"
+    - key: "proof_of_residence"
+      label: "Proof of Residence uploaded"
+      kind: "document"
+      doc_type: "PROOF_OF_RESIDENCE"
+      required: true
+      review: "required"
+    - key: "coe_employed"
+      label: "Certificate of Employment uploaded"
+      kind: "document"
+      doc_type: "COE"
+      required: true
+      review: "required"
+    - key: "payslips_latest"
+      label: "Payslips uploaded"
+      kind: "document"
+      doc_type: "PAYSLIPS"
+      required: true
+      review: "required"
+    - key: "bir_2316_or_itr"
+      label: "BIR 2316 / ITR uploaded"
+      kind: "document"
+      doc_type: "BIR_2316"
+      required: true
+      review: "required"
+    - key: "contract_to_sell"
+      label: "Contract to Sell uploaded"
+      kind: "document"
+      doc_type: "CONTRACT_TO_SELL"
+      required: true
+      review: "required"
+    - key: "tct_cct_or_title_doc"
+      label: "Title Document uploaded"
+      kind: "document"
+      doc_type: "TITLE_DOCUMENT"
+      required: true
+      review: "required"
+    - key: "tax_declaration"
+      label: "Tax Declaration uploaded"
+      kind: "document"
+      doc_type: "TAX_DECLARATION"
+      required: true
+      review: "required"
+    - key: "appraisal_report"
+      label: "Appraisal Report uploaded"
+      kind: "document"
+      doc_type: "APPRAISAL_REPORT"
+      required: false
+      review: "required"
+    - key: "license_to_sell"
+      label: "License to Sell uploaded"
+      kind: "document"
+      doc_type: "LICENSE_TO_SELL"
+      required: false
+      review: "required"
+    - key: "occupancy_permit"
+      label: "Occupancy Permit uploaded"
+      kind: "document"
+      doc_type: "OCCUPANCY_PERMIT"
+      required: false
+      review: "required"
+    # Signals
+    - key: "borrower_kyc_passed_signal"
+      label: "Borrower KYC passed"
+      kind: "signal"
+      signal_key: "borrower_kyc_passed"
+      required: true
+      review: "none"
+    - key: "credit_approved_signal"
+      label: "Credit/underwriting approved"
+      kind: "signal"
+      signal_key: "credit_approved"
+      required: true
+      review: "none"
+    - key: "legal_cleared_signal"
+      label: "Legal/title review cleared"
+      kind: "signal"
+      signal_key: "legal_cleared"
+      required: true
+      review: "none"
+    - key: "takeout_authorized_signal"
+      label: "Take-out authorized"
+      kind: "signal"
+      signal_key: "takeout_authorized"
+      required: true
+      review: "none"
+
+signals:
+  definitions:
+    - key: "borrower_kyc_passed"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+    - key: "credit_approved"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+    - key: "legal_cleared"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+    - key: "takeout_authorized"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+
+gates:
+  definitions:
+    - key: "payload_valid"
+      rule: "payload.valid == true"
+    - key: "required_present"
+      rule: "checklist.required_present == true"
+    - key: "required_accepted"
+      rule: "checklist.required_accepted == true"
+    - key: "approvals_ready"
+      rule: "signal._all_satisfied == true"
+    - key: "evidence_ready"
+      rule: "gate.payload_valid && gate.required_accepted"
+    - key: "settleable"
+      rule: "gate.evidence_ready && gate.approvals_ready && !checklist.has_rejected"
+
+audit:
+  enabled: true
+  capture:
+    - "payload_patch"
+    - "attachment_upload"
+    - "attachment_review"
+    - "signal_set"
+    - "gate_change"
+    - "status_change"
+
+manifest:
+  enabled: true
+  includes:
+    payload_hash: true
+    attachments_hashes: true
+    envelope_fingerprint: true

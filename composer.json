@@ -1,0 +1,49 @@
+{
+    "name": "3neti/settlement-envelope",
+    "description": "Driver-based evidence envelope system for settlement gating",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Lester Hurtado",
+            "email": "lester@3neti.ph"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0 || ^12.0",
+        "illuminate/database": "^11.0 || ^12.0",
+        "spatie/laravel-data": "^4.0",
+        "opis/json-schema": "^2.3",
+        "symfony/yaml": "^7.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0 || ^10.0",
+        "pestphp/pest": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "LBHurtado\\SettlementEnvelope\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "LBHurtado\\SettlementEnvelope\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "LBHurtado\\SettlementEnvelope\\SettlementEnvelopeServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

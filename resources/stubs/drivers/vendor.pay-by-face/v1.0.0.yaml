@@ -1,0 +1,188 @@
+driver:
+  id: vendor.pay-by-face
+  version: 1.0.0
+  title: 'Vendor Pay-by-Face Integration Test'
+  description: 'Evidence envelope for vendor face payment verification flow'
+  domain: vendor_payment
+  issuer_type: vendor
+payload:
+  schema:
+    id: vendor.pay-by-face.v1.0.0
+    format: json_schema
+    inline:
+      type: object
+      properties:
+        reference_id:
+          type: string
+          description: "Vendor's transaction reference"
+        item_description:
+          type: string
+          description: 'Description of item/service'
+        amount:
+          type: number
+          minimum: 0
+        currency:
+          type: string
+          default: PHP
+        id_type:
+          type: string
+          description: 'Type of ID presented (optional)'
+        id_number:
+          type: string
+          description: 'ID number (optional)'
+        email:
+          type: string
+          format: email
+        mobile:
+          type: string
+        callback_url:
+          type: string
+          format: uri
+          description: 'URL to call on successful payment'
+      required:
+        - reference_id
+        - item_description
+        - amount
+        - callback_url
+  storage:
+    mode: versioned
+    patch_strategy: merge
+documents:
+  registry:
+    -
+      type: FACE_PHOTO
+      title: 'Face Photo for Verification'
+      allowed_mimes:
+        - image/jpeg
+        - image/png
+      max_size_mb: 5
+      multiple: false
+    -
+      type: ID_FRONT
+      title: 'ID Card (Front)'
+      allowed_mimes:
+        - image/jpeg
+        - image/png
+        - application/pdf
+      max_size_mb: 5
+      multiple: false
+    -
+      type: ID_BACK
+      title: 'ID Card (Back)'
+      allowed_mimes:
+        - image/jpeg
+        - image/png
+        - application/pdf
+      max_size_mb: 5
+      multiple: false
+checklist:
+  template:
+    -
+      key: reference_id_provided
+      label: 'Reference ID provided'
+      kind: payload_field
+      doc_type: null
+      payload_pointer: /reference_id
+      signal_key: null
+      required: true
+      review: none
+    -
+      key: amount_provided
+      label: 'Amount specified'
+      kind: payload_field
+      doc_type: null
+      payload_pointer: /amount
+      signal_key: null
+      required: true
+      review: none
+    -
+      key: callback_url_provided
+      label: 'Callback URL specified'
+      kind: payload_field
+      doc_type: null
+      payload_pointer: /callback_url
+      signal_key: null
+      required: true
+      review: none
+    -
+      key: face_photo
+      label: 'Face photo captured'
+      kind: document
+      doc_type: FACE_PHOTO
+      payload_pointer: null
+      signal_key: null
+      required: true
+      review: none
+    -
+      key: id_front
+      label: 'ID card front (optional)'
+      kind: document
+      doc_type: ID_FRONT
+      payload_pointer: null
+      signal_key: null
+      required: false
+      review: optional
+    -
+      key: id_back
+      label: 'ID card back (optional)'
+      kind: document
+      doc_type: ID_BACK
+      payload_pointer: null
+      signal_key: null
+      required: false
+      review: optional
+    -
+      key: face_verified
+      label: 'Face verification passed'
+      kind: signal
+      doc_type: null
+      payload_pointer: null
+      signal_key: face_verified
+      required: true
+      review: none
+signals:
+  definitions:
+    -
+      key: face_verified
+      type: boolean
+      source: host
+      default: false
+      required: false
+      signal_category: decision
+      system_settable: false
+    -
+      key: callback_sent
+      type: boolean
+      source: host
+      default: false
+      required: false
+      signal_category: decision
+      system_settable: false
+gates:
+  definitions:
+    -
+      key: payload_valid
+      rule: 'payload.valid == true'
+    -
+      key: face_captured
+      rule: 'checklist.face_photo == true'
+    -
+      key: evidence_ready
+      rule: 'gate.payload_valid && gate.face_captured'
+    -
+      key: settleable
+      rule: 'gate.evidence_ready && signal.face_verified'
+audit:
+  enabled: true
+  capture:
+    - payload_patch
+    - attachment_upload
+    - attachment_review
+    - signal_set
+    - gate_change
+manifest:
+  enabled: true
+  includes:
+    payload_hash: true
+    attachments_hashes: true
+    envelope_fingerprint: true

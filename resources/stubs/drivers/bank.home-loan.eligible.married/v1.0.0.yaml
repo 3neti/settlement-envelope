@@ -1,0 +1,50 @@
+extends:
+  - "bank.home-loan.base@1.0.0"
+
+driver:
+  id: "bank.home-loan.eligible.married"
+  version: "1.0.0"
+  title: "Bank Home Loan - Married Borrower"
+  description: "Overlay for married borrower requiring spouse documentation"
+
+documents:
+  registry:
+    - type: "MARRIAGE_CERT"
+      title: "Marriage Certificate"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 10
+      multiple: false
+    - type: "SPOUSE_ID"
+      title: "Spouse Government ID"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 10
+      multiple: false
+
+checklist:
+  template:
+    - key: "marriage_certificate"
+      label: "Marriage Certificate uploaded"
+      kind: "document"
+      doc_type: "MARRIAGE_CERT"
+      required: true
+      review: "required"
+    - key: "spouse_id"
+      label: "Spouse Government ID uploaded"
+      kind: "document"
+      doc_type: "SPOUSE_ID"
+      required: true
+      review: "required"
+    - key: "spouse_consent_captured_signal"
+      label: "Spouse consent captured"
+      kind: "signal"
+      signal_key: "spouse_consent_captured"
+      required: true
+      review: "none"
+
+signals:
+  definitions:
+    - key: "spouse_consent_captured"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"

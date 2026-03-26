@@ -1,0 +1,68 @@
+extends:
+  - "bank.home-loan.base@1.0.0"
+
+driver:
+  id: "bank.home-loan.eligible.with-co-borrower"
+  version: "1.0.0"
+  title: "Bank Home Loan - With Co-Borrower"
+  description: "Overlay for loans with a co-borrower for income augmentation"
+
+documents:
+  registry:
+    - type: "CO_BORROWER_ID"
+      title: "Co-borrower Government ID"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 10
+      multiple: false
+    - type: "CO_BORROWER_INCOME"
+      title: "Co-borrower Proof of Income"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 15
+      multiple: true
+
+checklist:
+  template:
+    - key: "co_borrower_id"
+      label: "Co-borrower Government ID uploaded"
+      kind: "document"
+      doc_type: "CO_BORROWER_ID"
+      required: true
+      review: "required"
+    - key: "co_borrower_income_proof"
+      label: "Co-borrower Income Proof uploaded"
+      kind: "document"
+      doc_type: "CO_BORROWER_INCOME"
+      required: true
+      review: "required"
+    - key: "joint_income_sufficient_signal"
+      label: "Joint income sufficient"
+      kind: "signal"
+      signal_key: "joint_income_sufficient"
+      required: true
+      review: "none"
+    - key: "co_borrower_consent_captured_signal"
+      label: "Co-borrower consent captured"
+      kind: "signal"
+      signal_key: "co_borrower_consent_captured"
+      required: true
+      review: "none"
+
+signals:
+  definitions:
+    - key: "joint_income_sufficient"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+    - key: "co_borrower_consent_captured"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+
+gates:
+  definitions:
+    - key: "joint_capacity_ok"
+      rule: "signal.joint_income_sufficient == true"
+    - key: "settleable"
+      rule: "gate.evidence_ready && gate.approvals_ready && gate.joint_capacity_ok && !checklist.has_rejected"

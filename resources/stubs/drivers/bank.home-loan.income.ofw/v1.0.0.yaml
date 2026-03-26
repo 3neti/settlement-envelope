@@ -1,0 +1,82 @@
+extends:
+  - "bank.home-loan.base@1.0.0"
+
+driver:
+  id: "bank.home-loan.income.ofw"
+  version: "1.0.0"
+  title: "Bank Home Loan - OFW Income"
+  description: "Overlay replacing employed income docs with OFW documentation"
+
+documents:
+  registry:
+    - type: "POEA_CONTRACT"
+      title: "POEA Contract / Employment Contract"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 15
+      multiple: false
+    - type: "OFW_PAYSLIPS"
+      title: "Overseas Payslips/Remittance Proof"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 15
+      multiple: true
+    - type: "SPA"
+      title: "Special Power of Attorney"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 15
+      multiple: false
+
+checklist:
+  template:
+    # Override employed income docs as not required
+    - key: "coe_employed"
+      label: "Certificate of Employment (N/A for OFW)"
+      kind: "document"
+      doc_type: "COE"
+      required: false
+      review: "required"
+    - key: "payslips_latest"
+      label: "Payslips (N/A for OFW)"
+      kind: "document"
+      doc_type: "PAYSLIPS"
+      required: false
+      review: "required"
+    # Add OFW docs
+    - key: "poea_contract"
+      label: "POEA Contract uploaded"
+      kind: "document"
+      doc_type: "POEA_CONTRACT"
+      required: true
+      review: "required"
+    - key: "overseas_payslips"
+      label: "Overseas Payslips/Remittance uploaded"
+      kind: "document"
+      doc_type: "OFW_PAYSLIPS"
+      required: true
+      review: "required"
+    - key: "special_power_of_attorney"
+      label: "Special Power of Attorney uploaded"
+      kind: "document"
+      doc_type: "SPA"
+      required: true
+      review: "required"
+    - key: "ofw_income_validated_signal"
+      label: "OFW income validated"
+      kind: "signal"
+      signal_key: "ofw_income_validated"
+      required: true
+      review: "none"
+
+signals:
+  definitions:
+    - key: "ofw_income_validated"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+
+gates:
+  definitions:
+    - key: "ofw_income_validated"
+      rule: "signal.ofw_income_validated == true"
+    - key: "settleable"
+      rule: "gate.evidence_ready && gate.approvals_ready && gate.ofw_income_validated && !checklist.has_rejected"

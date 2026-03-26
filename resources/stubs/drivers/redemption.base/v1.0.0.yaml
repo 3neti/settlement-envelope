@@ -1,0 +1,154 @@
+# =============================================================================
+# Redemption Base Driver (Abstract)
+# =============================================================================
+# Base driver for voucher redemption flows. Extend this driver to create
+# specialized redemption workflows (with-kyc, minimal, full-inputs, etc.)
+#
+# Like an abstract class:
+#   - Defines common structure and sensible defaults
+#   - Child drivers use `extends: ["redemption.base@1.0.0"]`
+#   - Children can override/add payload sections, documents, signals, etc.
+#
+# Usage:
+#   extends:
+#     - "redemption.base@1.0.0"
+# =============================================================================
+
+driver:
+  id: "redemption.base"
+  version: "1.0.0"
+  title: "Redemption Base (Abstract)"
+  description: "Abstract base driver for voucher redemption - extend, don't use directly"
+  domain: "redemption"
+  issuer_type: "voucher"
+
+# -----------------------------------------------------------------------------
+# Payload Schema - Freeform to allow any redemption data
+# -----------------------------------------------------------------------------
+payload:
+  schema:
+    id: "redemption.base.v1"
+    format: "json_schema"
+    inline:
+      type: "object"
+      additionalProperties: true  # Allow any structure - children may constrain
+      properties:
+        redeemer:
+          type: "object"
+          description: "Redeemer personal information"
+        wallet:
+          type: "object"
+          description: "Payment/wallet details"
+        location:
+          type: "object"
+          description: "GPS location data"
+  storage:
+    mode: "versioned"
+    patch_strategy: "merge"
+
+# -----------------------------------------------------------------------------
+# Documents Registry - Common document types for redemption
+# -----------------------------------------------------------------------------
+documents:
+  registry:
+    - type: "SELFIE"
+      title: "Selfie Photo"
+      allowed_mimes: ["image/jpeg", "image/png"]
+      max_size_mb: 5
+      multiple: false
+    - type: "SIGNATURE"
+      title: "Digital Signature"
+      allowed_mimes: ["image/png"]
+      max_size_mb: 2
+      multiple: false
+    - type: "MAP_SNAPSHOT"
+      title: "Location Map"
+      allowed_mimes: ["image/png", "image/jpeg"]
+      max_size_mb: 5
+      multiple: false
+
+# -----------------------------------------------------------------------------
+# Checklist Template - Minimal required items
+# -----------------------------------------------------------------------------
+checklist:
+  template:
+    - key: "redeemer_info"
+      label: "Redeemer Information"
+      kind: "payload_field"
+      payload_pointer: "/redeemer"
+      required: true
+      review: "none"
+
+# -----------------------------------------------------------------------------
+# Signals - None by default (children can add)
+# -----------------------------------------------------------------------------
+signals:
+  definitions: []
+
+# -----------------------------------------------------------------------------
+# Gates - Basic settleable condition
+# -----------------------------------------------------------------------------
+gates:
+  definitions:
+    - key: "settleable"
+      rule: "checklist.required_accepted"
+
+# -----------------------------------------------------------------------------
+# Audit - Enabled by default
+# -----------------------------------------------------------------------------
+audit:
+  enabled: true
+  capture:
+    - "payload_patch"
+    - "attachment_upload"
+    - "attachment_review"
+
+# -----------------------------------------------------------------------------
+# Manifest - Disabled by default for redemption flows
+# -----------------------------------------------------------------------------
+manifest:
+  enabled: false
+
+# =============================================================================
+# Form Flow Mapping - Common redemption field mappings
+# =============================================================================
+# Maps form flow collected data to envelope payload and attachments.
+# Children can override specific fields or add new sections.
+# =============================================================================
+form_flow_mapping:
+  payload:
+    # Redeemer info - core fields from wallet_info and bio_fields steps
+    redeemer:
+      mobile: "wallet_info.mobile"
+      name: "bio_fields.full_name | bio_fields.name"
+      birth_date: "bio_fields.birth_date"
+      address: "bio_fields.address"
+      email: "bio_fields.email"
+
+    # Wallet/payment details
+    wallet:
+      bank_code: "wallet_info.bank_code"
+      account_number: "wallet_info.account_number"
+      settlement_rail: "wallet_info.settlement_rail"
+
+    # Location data with type casting
+    location:
+      latitude: "location_capture.latitude:float"
+      longitude: "location_capture.longitude:float"
+      accuracy: "location_capture.accuracy:float"
+      formatted_address: "location_capture.address.formatted | location_capture.formatted_address"
+      captured_at: "location_capture.timestamp"
+
+  attachments:
+    SELFIE:
+      source: "selfie_capture.selfie"
+      filename: "selfie.jpg"
+      mime: "image/jpeg"
+    SIGNATURE:
+      source: "signature_capture.signature"
+      filename: "signature.png"
+      mime: "image/png"
+    MAP_SNAPSHOT:
+      source: "location_capture.map"
+      filename: "map_snapshot.png"
+      mime: "image/png"

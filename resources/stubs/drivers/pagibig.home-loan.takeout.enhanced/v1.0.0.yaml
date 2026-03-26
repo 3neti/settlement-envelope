@@ -1,0 +1,32 @@
+extends:
+  - "pagibig.home-loan.base@1.0.0"
+
+driver:
+  id: "pagibig.home-loan.takeout.enhanced"
+  version: "1.0.0"
+  title: "Pag-IBIG Home Loan - Enhanced Review"
+  description: "Overlay for high-value or exception cases requiring senior approval"
+
+checklist:
+  template:
+    - key: "senior_approval_signal"
+      label: "Senior approval obtained"
+      kind: "signal"
+      signal_key: "senior_approval"
+      required: true
+      review: "none"
+
+signals:
+  definitions:
+    - key: "senior_approval"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+
+gates:
+  definitions:
+    - key: "enhanced_review_done"
+      rule: "signal.senior_approval == true"
+    - key: "settleable"
+      rule: "gate.evidence_ready && gate.pagibig_membership_ok && gate.pagibig_eligibility_ok && gate.pagibig_appraisal_done && gate.enhanced_review_done && signal.takeout_authorized && !checklist.has_rejected"

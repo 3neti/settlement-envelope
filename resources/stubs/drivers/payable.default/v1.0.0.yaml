@@ -1,0 +1,64 @@
+driver:
+  id: "payable.default"
+  version: "1.0.0"
+  title: "Default Payable/Settlement Driver"
+  description: "Auto-created driver for payable and settlement vouchers. Stores external metadata and reference documents."
+  domain: "payment"
+  issuer_type: "voucher"
+
+payload:
+  schema:
+    id: "payable.default.v1"
+    format: "json_schema"
+    inline:
+      type: "object"
+      additionalProperties: true
+      description: "Freeform JSON payload - accepts any structure for external metadata"
+  storage:
+    mode: "versioned"
+    patch_strategy: "merge"
+
+documents:
+  registry:
+    - type: "REFERENCE_DOC"
+      title: "Reference Document"
+      allowed_mimes: ["application/pdf", "image/jpeg", "image/png"]
+      max_size_mb: 5
+      multiple: true
+
+checklist:
+  template:
+    - key: "payload_present"
+      label: "Payment details provided"
+      kind: "payload_field"
+      payload_pointer: "/"
+      required: true
+      review: "none"
+    - key: "reference_documents"
+      label: "Reference documents uploaded"
+      kind: "document"
+      doc_type: "REFERENCE_DOC"
+      required: false  # Documents are optional
+      review: "none"  # Auto-accept - these are just bills/invoices for reference
+
+signals:
+  definitions: []  # No signals needed - payable vouchers auto-settle
+
+gates:
+  definitions:
+    - key: "has_payload"
+      rule: "payload != null"
+    - key: "settleable"
+      rule: "payload != null"  # Auto-settle when payload exists (no review workflow)
+
+audit:
+  enabled: true
+  capture:
+    - "payload_patch"
+    - "attachment_upload"
+    - "attachment_review"
+    - "signal_set"
+    - "gate_change"
+
+manifest:
+  enabled: false

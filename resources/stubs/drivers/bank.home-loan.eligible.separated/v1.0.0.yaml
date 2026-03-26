@@ -1,0 +1,46 @@
+extends:
+  - "bank.home-loan.base@1.0.0"
+
+driver:
+  id: "bank.home-loan.eligible.separated"
+  version: "1.0.0"
+  title: "Bank Home Loan - Separated/Annulled Borrower"
+  description: "Overlay for legally separated borrower with property regime clearance"
+
+documents:
+  registry:
+    - type: "COURT_DECREE"
+      title: "Court Decree (Annulment/Legal Separation)"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 20
+      multiple: false
+
+checklist:
+  template:
+    - key: "legal_separation_decree"
+      label: "Court Decree uploaded"
+      kind: "document"
+      doc_type: "COURT_DECREE"
+      required: true
+      review: "required"
+    - key: "property_regime_cleared_signal"
+      label: "Property regime cleared"
+      kind: "signal"
+      signal_key: "property_regime_cleared"
+      required: true
+      review: "none"
+
+signals:
+  definitions:
+    - key: "property_regime_cleared"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+
+gates:
+  definitions:
+    - key: "high_risk_clearance"
+      rule: "signal.property_regime_cleared == true"
+    - key: "settleable"
+      rule: "gate.evidence_ready && gate.approvals_ready && gate.high_risk_clearance && !checklist.has_rejected"

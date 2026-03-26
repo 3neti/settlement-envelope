@@ -1,0 +1,87 @@
+driver:
+  id: "simple.envelope"
+  version: "1.0.0"
+  title: "Simple Envelope Driver"
+  description: "Minimal driver for testing envelope workflows in host app"
+  domain: "testing"
+
+payload:
+  schema:
+    id: "simple.envelope.v1"
+    format: "json_schema"
+    inline:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        reference_code:
+          type: "string"
+        amount:
+          type: "number"
+        notes:
+          type: "string"
+      required: ["name"]
+  storage:
+    mode: "versioned"
+    patch_strategy: "merge"
+
+documents:
+  registry:
+    - type: "TEST_DOC"
+      title: "Test Document"
+      allowed_mimes: ["application/pdf", "image/jpeg", "image/png"]
+      max_size_mb: 5
+      multiple: false
+
+checklist:
+  template:
+    - key: "name_provided"
+      label: "Name provided in payload"
+      kind: "payload_field"
+      payload_pointer: "/name"
+      required: true
+      review: "none"
+    - key: "test_document"
+      label: "Test document uploaded"
+      kind: "document"
+      doc_type: "TEST_DOC"
+      required: false
+      review: "optional"
+    - key: "approved"
+      label: "Envelope approved"
+      kind: "signal"
+      signal_key: "approved"
+      required: true
+      review: "none"
+
+signals:
+  definitions:
+    - key: "approved"
+      type: "boolean"
+      source: "host"
+      default: false
+
+gates:
+  definitions:
+    - key: "payload_valid"
+      rule: "payload.valid == true"
+    - key: "checklist_complete"
+      rule: "checklist.required_accepted == true"
+    - key: "settleable"
+      rule: "gate.payload_valid && gate.checklist_complete && signal.approved"
+
+audit:
+  enabled: true
+  capture:
+    - "payload_patch"
+    - "attachment_upload"
+    - "attachment_review"
+    - "signal_set"
+    - "gate_change"
+
+manifest:
+  enabled: true
+  includes:
+    payload_hash: true
+    attachments_hashes: true
+    envelope_fingerprint: true

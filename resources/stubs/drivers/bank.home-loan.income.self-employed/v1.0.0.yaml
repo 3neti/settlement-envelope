@@ -1,0 +1,99 @@
+extends:
+  - "bank.home-loan.base@1.0.0"
+
+driver:
+  id: "bank.home-loan.income.self-employed"
+  version: "1.0.0"
+  title: "Bank Home Loan - Self-Employed Income"
+  description: "Overlay replacing employed income docs with self-employed business documentation"
+
+documents:
+  registry:
+    - type: "BUSINESS_REGISTRATION"
+      title: "DTI/SEC Registration"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 15
+      multiple: false
+    - type: "BUSINESS_PERMIT"
+      title: "Mayor's/Business Permit"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 15
+      multiple: false
+    - type: "FINANCIAL_STATEMENTS"
+      title: "Financial Statements"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 20
+      multiple: true
+    - type: "ITR"
+      title: "Income Tax Return"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 10
+      multiple: true
+
+checklist:
+  template:
+    # Override employed income docs as not required
+    - key: "coe_employed"
+      label: "Certificate of Employment (N/A for self-employed)"
+      kind: "document"
+      doc_type: "COE"
+      required: false
+      review: "required"
+    - key: "payslips_latest"
+      label: "Payslips (N/A for self-employed)"
+      kind: "document"
+      doc_type: "PAYSLIPS"
+      required: false
+      review: "required"
+    - key: "bir_2316_or_itr"
+      label: "BIR 2316 (N/A for self-employed)"
+      kind: "document"
+      doc_type: "BIR_2316"
+      required: false
+      review: "required"
+    # Add self-employed docs
+    - key: "dti_or_sec_registration"
+      label: "DTI/SEC Registration uploaded"
+      kind: "document"
+      doc_type: "BUSINESS_REGISTRATION"
+      required: true
+      review: "required"
+    - key: "business_permit"
+      label: "Business Permit uploaded"
+      kind: "document"
+      doc_type: "BUSINESS_PERMIT"
+      required: true
+      review: "required"
+    - key: "financial_statements"
+      label: "Financial Statements uploaded"
+      kind: "document"
+      doc_type: "FINANCIAL_STATEMENTS"
+      required: true
+      review: "required"
+    - key: "itr"
+      label: "Income Tax Return uploaded"
+      kind: "document"
+      doc_type: "ITR"
+      required: true
+      review: "required"
+    - key: "income_validated_signal"
+      label: "Income validated"
+      kind: "signal"
+      signal_key: "income_validated"
+      required: true
+      review: "none"
+
+signals:
+  definitions:
+    - key: "income_validated"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+
+gates:
+  definitions:
+    - key: "income_validated"
+      rule: "signal.income_validated == true"
+    - key: "settleable"
+      rule: "gate.evidence_ready && gate.approvals_ready && gate.income_validated && !checklist.has_rejected"

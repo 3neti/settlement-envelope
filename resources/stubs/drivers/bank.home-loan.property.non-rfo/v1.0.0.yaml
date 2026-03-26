@@ -1,0 +1,53 @@
+extends:
+  - "bank.home-loan.base@1.0.0"
+
+driver:
+  id: "bank.home-loan.property.non-rfo"
+  version: "1.0.0"
+  title: "Bank Home Loan - Pre-Selling Property"
+  description: "Overlay for pre-selling properties requiring LTS and developer accreditation"
+
+documents:
+  registry:
+    - type: "DEVELOPMENT_PERMIT"
+      title: "Development Permit"
+      allowed_mimes: ["image/jpeg", "image/png", "application/pdf"]
+      max_size_mb: 20
+      multiple: false
+
+checklist:
+  template:
+    # Make license to sell required for pre-selling
+    - key: "license_to_sell"
+      label: "License to Sell uploaded"
+      kind: "document"
+      doc_type: "LICENSE_TO_SELL"
+      required: true
+      review: "required"
+    - key: "development_permit"
+      label: "Development Permit uploaded"
+      kind: "document"
+      doc_type: "DEVELOPMENT_PERMIT"
+      required: true
+      review: "required"
+    - key: "developer_accredited_signal"
+      label: "Developer accredited"
+      kind: "signal"
+      signal_key: "developer_accredited"
+      required: true
+      review: "none"
+
+signals:
+  definitions:
+    - key: "developer_accredited"
+      type: "boolean"
+      source: "host"
+      default: false
+      signal_category: "decision"
+
+gates:
+  definitions:
+    - key: "developer_ok"
+      rule: "signal.developer_accredited == true"
+    - key: "settleable"
+      rule: "gate.evidence_ready && gate.approvals_ready && gate.developer_ok && !checklist.has_rejected"

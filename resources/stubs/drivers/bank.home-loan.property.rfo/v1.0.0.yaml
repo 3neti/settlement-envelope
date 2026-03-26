@@ -1,0 +1,18 @@
+extends:
+  - "bank.home-loan.base@1.0.0"
+
+driver:
+  id: "bank.home-loan.property.rfo"
+  version: "1.0.0"
+  title: "Bank Home Loan - RFO Property"
+  description: "Overlay for Ready-for-Occupancy properties requiring occupancy permit"
+
+checklist:
+  template:
+    # Make occupancy permit required for RFO
+    - key: "occupancy_permit"
+      label: "Occupancy Permit uploaded"
+      kind: "document"
+      doc_type: "OCCUPANCY_PERMIT"
+      required: true
+      review: "required"
