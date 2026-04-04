@@ -12,7 +12,7 @@
     "require": {
         "php": "^8.2",
         "illuminate/support": "^12.0 || ^13.0",
-        "illuminate/database": "^11.0 || ^12.0",
+        "illuminate/database": "^12.0 || ^13.0",
         "spatie/laravel-data": "^4.0",
         "opis/json-schema": "^2.3",
         "symfony/yaml": "^7.0"
