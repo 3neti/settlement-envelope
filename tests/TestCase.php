@@ -3,6 +3,7 @@
 namespace LBHurtado\SettlementEnvelope\Tests;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use LBHurtado\SettlementEnvelope\SettlementEnvelopeServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
@@ -10,6 +11,8 @@ use Spatie\LaravelData\Support\Creation\ValidationStrategy;
 
 abstract class TestCase extends Orchestra
 {
+    use RefreshDatabase;
+
     protected function getPackageProviders($app): array
     {
         return [
@@ -56,11 +59,6 @@ abstract class TestCase extends Orchestra
         $app['config']->set('settlement-envelope.audit.enabled', true);
         $app['config']->set('settlement-envelope.manifest.enabled', true);
         $app['config']->set('settlement-envelope.actor_model', TestUser::class);
-    }
-
-    protected function defineDatabaseMigrations(): void
-    {
-        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
     }
 
     protected function setUp(): void
