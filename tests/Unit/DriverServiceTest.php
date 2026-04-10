@@ -5,8 +5,8 @@ use LBHurtado\SettlementEnvelope\Exceptions\DriverNotFoundException;
 use LBHurtado\SettlementEnvelope\Services\DriverService;
 
 beforeEach(function () {
-    $this->driverDirectory = __DIR__.'/../../drivers';
-    $this->service = new DriverService($this->driverDirectory);
+    $this->service = new DriverService;
+    $this->composedHomeLoanDriver = 'bank.home-loan.base';
 });
 
 describe('driver loading', function () {
@@ -20,11 +20,12 @@ describe('driver loading', function () {
             ->and($driver->domain)->toBe('testing');
     });
 
-    test('loads bank home-loan-takeout driver', function () {
-        $driver = $this->service->load('bank.home-loan-takeout', '1.0.0');
+    test('loads existing home-loan driver', function () {
+        $driver = $this->service->load($this->composedHomeLoanDriver, '1.0.0');
 
         expect($driver)->toBeInstanceOf(DriverData::class)
-            ->and($driver->id)->toBe('bank.home-loan-takeout')
+            ->and($driver->id)->toBe($this->composedHomeLoanDriver)
+            ->and($driver->version)->toBe('1.0.0')
             ->and($driver->domain)->toBe('housing_finance')
             ->and($driver->issuer_type)->toBe('developer');
     });
@@ -38,7 +39,6 @@ describe('driver loading', function () {
         $driver1 = $this->service->load('simple.test', '1.0.0');
         $driver2 = $this->service->load('simple.test', '1.0.0');
 
-        // Should be same instance from memory cache
         expect($driver1)->toBe($driver2);
     });
 });
@@ -107,6 +107,10 @@ describe('driver parsing - checklist', function () {
         $driver = $this->service->load('simple.test', '1.0.0');
 
         expect($driver->checklist)->toHaveCount(3);
+
+        $keys = collect($driver->checklist)->pluck('key')->toArray();
+
+        expect($keys)->toContain('name_provided', 'test_doc', 'approved_signal');
     });
 
     test('parses payload_field checklist item', function () {
@@ -163,13 +167,19 @@ describe('driver parsing - signals', function () {
         expect($missing)->toBeNull();
     });
 
-    test('parses multiple signals', function () {
-        $driver = $this->service->load('bank.home-loan-takeout', '1.0.0');
+    test('parses multiple signals from existing home-loan driver', function () {
+        $driver = $this->service->load($this->composedHomeLoanDriver, '1.0.0');
 
-        expect($driver->signals)->toHaveCount(3);
+        expect($driver->signals)->toHaveCount(4);
 
         $keys = collect($driver->signals)->pluck('key')->toArray();
-        expect($keys)->toContain('kyc_passed', 'account_created', 'underwriting_approved');
+
+        expect($keys)->toContain(
+            'borrower_kyc_passed',
+            'credit_approved',
+            'legal_cleared',
+            'takeout_authorized',
+        );
     });
 });
 
@@ -178,6 +188,10 @@ describe('driver parsing - gates', function () {
         $driver = $this->service->load('simple.test', '1.0.0');
 
         expect($driver->gates)->toHaveCount(3);
+
+        $keys = collect($driver->gates)->pluck('key')->toArray();
+
+        expect($keys)->toContain('payload_valid', 'checklist_complete', 'settleable');
     });
 
     test('parses gate rule', function () {
@@ -188,15 +202,15 @@ describe('driver parsing - gates', function () {
             ->and($gate->rule)->toBe('gate.payload_valid && gate.checklist_complete && signal.approved');
     });
 
-    test('parses complex gate hierarchy', function () {
-        $driver = $this->service->load('bank.home-loan-takeout', '1.0.0');
+    test('parses gates from existing home-loan driver', function () {
+        $driver = $this->service->load($this->composedHomeLoanDriver, '1.0.0');
 
-        expect($driver->gates)->toHaveCount(5);
+        expect($driver->gates)->toHaveCount(6);
 
         $settleableGate = $driver->getGateDefinition('settleable');
-        expect($settleableGate->rule)->toContain('gate.evidence_ready')
-            ->and($settleableGate->rule)->toContain('gate.account_ready')
-            ->and($settleableGate->rule)->toContain('signal.underwriting_approved');
+
+        expect($settleableGate)->not->toBeNull()
+            ->and($settleableGate->rule)->toBe('gate.evidence_ready && gate.approvals_ready && !checklist.has_rejected');
     });
 });
 
@@ -208,7 +222,7 @@ describe('driver listing', function () {
             ->and(count($drivers))->toBeGreaterThanOrEqual(2);
 
         $ids = collect($drivers)->pluck('id')->toArray();
-        expect($ids)->toContain('simple.test', 'bank.home-loan-takeout');
+        expect($ids)->toContain('simple.test', $this->composedHomeLoanDriver);
     });
 });
 

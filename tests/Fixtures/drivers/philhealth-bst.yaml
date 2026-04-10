@@ -1,0 +1,99 @@
+# PhilHealth BST Settlement Envelope Driver
+# Published to: config/envelope-drivers/philhealth-bst.yaml
+
+id: philhealth-bst
+version: 1.0.0
+name: PhilHealth BST Settlement
+description: Benefit Support Token workflow for PhilHealth reimbursements
+
+# Schema defines what data and documents the envelope can hold
+schema:
+  payload:
+    required: true
+    fields:
+      patient_name:
+        type: string
+        required: true
+        label: Patient Name
+      patient_mobile:
+        type: string
+        required: true
+        label: Mobile Number
+      philhealth_number:
+        type: string
+        required: false
+        label: PhilHealth ID Number
+      diagnosis:
+        type: string
+        required: false
+        label: Diagnosis/Procedure
+      hospital_name:
+        type: string
+        required: false
+        label: Hospital/Facility
+      admission_date:
+        type: date
+        required: false
+        label: Date of Admission
+      discharge_date:
+        type: date
+        required: false
+        label: Date of Discharge
+
+  documents:
+    CLAIM_FORM:
+      name: PhilHealth Claim Form (CF1/CF2)
+      required: false
+      auto_accept: false
+      description: Completed PhilHealth claim forms
+    HOSPITAL_BILL:
+      name: Statement of Account / Hospital Bill
+      required: false
+      auto_accept: false
+      description: Itemized hospital bill or statement of account
+    DISCHARGE_SUMMARY:
+      name: Clinical Abstract / Discharge Summary
+      required: false
+      auto_accept: false
+      description: Medical discharge summary from hospital
+    VALID_ID:
+      name: Valid Government ID
+      required: false
+      auto_accept: true
+      description: Government-issued ID of patient or representative
+
+# Checklist items that must be satisfied before settlement
+checklist:
+  - id: payload_present
+    label: Patient information captured
+    auto: true
+    description: Basic patient details have been recorded
+
+  - id: claim_documents_uploaded
+    label: Claim documents attached
+    auto: true
+    description: At least one supporting document has been uploaded
+
+  - id: amount_verified
+    label: Reimbursement amount verified
+    auto: false
+    description: PhilHealth reimbursement amount has been verified
+
+# Gates control when envelope can advance to certain states
+gates:
+  # Can be settled when payload exists and amount is verified
+  settleable:
+    conditions:
+      - payload_present
+      - amount_verified
+
+# Form flow mapping for auto-populating payload from redemption
+form_flow_mapping:
+  payload:
+    patient_name: "bio_fields.name | bio_fields.full_name"
+    patient_mobile: "wallet_info.mobile"
+
+# Audit settings
+audit:
+  capture_all: true
+  retention_days: 2555  # 7 years for medical records
