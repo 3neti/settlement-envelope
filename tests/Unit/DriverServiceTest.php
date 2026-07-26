@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Cache;
 use LBHurtado\SettlementEnvelope\Data\DriverData;
 use LBHurtado\SettlementEnvelope\Exceptions\DriverNotFoundException;
 use LBHurtado\SettlementEnvelope\Services\DriverService;
@@ -40,6 +41,30 @@ describe('driver loading', function () {
         $driver2 = $this->service->load('simple.test', '1.0.0');
 
         expect($driver1)->toBe($driver2);
+    });
+
+    test('hydrates portable cached driver data across service instances', function () {
+        $cacheKey = 'envelope_driver:simple.test:1.0.0';
+        Cache::forget($cacheKey);
+
+        $first = (new DriverService)->load('simple.test', '1.0.0');
+        $cached = Cache::get($cacheKey);
+        $second = (new DriverService)->load('simple.test', '1.0.0');
+
+        expect($cached)->toBeArray()
+            ->and($second)->toBeInstanceOf(DriverData::class)
+            ->and($second->id)->toBe($first->id);
+    });
+
+    test('rebuilds an invalid cross-process cache value', function () {
+        $cacheKey = 'envelope_driver:simple.test:1.0.0';
+        Cache::put($cacheKey, 'stale serialized driver', 3600);
+
+        $driver = (new DriverService)->load('simple.test', '1.0.0');
+
+        expect($driver)->toBeInstanceOf(DriverData::class)
+            ->and($driver->id)->toBe('simple.test')
+            ->and(Cache::get($cacheKey))->toBeArray();
     });
 });
 

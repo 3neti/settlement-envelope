@@ -11,6 +11,7 @@ use LBHurtado\SettlementEnvelope\Exceptions\CircularDependencyException;
 use LBHurtado\SettlementEnvelope\Exceptions\DriverNotFoundException;
 use LBHurtado\SettlementEnvelope\Exceptions\InvalidDriverException;
 use Symfony\Component\Yaml\Yaml;
+use Throwable;
 
 class DriverService
 {
@@ -43,9 +44,21 @@ class DriverService
         }
 
         // Check application cache
-        $driver = Cache::remember($cacheKey, 3600, function () use ($driverId, $version) {
-            return $this->loadFromFile($driverId, $version);
-        });
+        $driver = Cache::get($cacheKey);
+
+        if (is_array($driver)) {
+            try {
+                $driver = DriverData::from($driver);
+            } catch (Throwable) {
+                $driver = null;
+            }
+        }
+
+        if (! $driver instanceof DriverData) {
+            Cache::forget($cacheKey);
+            $driver = $this->loadFromFile($driverId, $version);
+            Cache::put($cacheKey, $driver->toArray(), 3600);
+        }
 
         $this->loadedDrivers[$cacheKey] = $driver;
 
