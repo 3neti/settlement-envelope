@@ -2,6 +2,7 @@
 
 namespace LBHurtado\SettlementEnvelope\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Hash;
@@ -19,12 +20,12 @@ use Illuminate\Support\Str;
  * @property array|null $metadata
  * @property string|null $password
  * @property int|null $created_by
- * @property \Carbon\Carbon $expires_at
- * @property \Carbon\Carbon|null $revoked_at
- * @property \Carbon\Carbon|null $last_used_at
+ * @property Carbon $expires_at
+ * @property Carbon|null $revoked_at
+ * @property Carbon|null $last_used_at
  * @property int $use_count
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class EnvelopeContributionToken extends Model
 {

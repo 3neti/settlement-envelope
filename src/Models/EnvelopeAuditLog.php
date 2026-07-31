@@ -2,6 +2,7 @@
 
 namespace LBHurtado\SettlementEnvelope\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -16,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property array|null $before
  * @property array|null $after
  * @property array|null $metadata
- * @property \Carbon\Carbon $created_at
+ * @property Carbon $created_at
  */
 class EnvelopeAuditLog extends Model
 {

@@ -7,6 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use LBHurtado\SettlementEnvelope\SettlementEnvelopeServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
+use Spatie\LaravelData\LaravelDataServiceProvider;
 use Spatie\LaravelData\Support\Creation\ValidationStrategy;
 
 abstract class TestCase extends Orchestra
@@ -16,7 +17,7 @@ abstract class TestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
-            \Spatie\LaravelData\LaravelDataServiceProvider::class,
+            LaravelDataServiceProvider::class,
             SettlementEnvelopeServiceProvider::class,
         ];
     }
@@ -83,10 +84,10 @@ abstract class TestCase extends Orchestra
     protected function prepareFixtureDirectories(): void
     {
         foreach ([
-                     __DIR__.'/Fixtures',
-                     __DIR__.'/Fixtures/storage',
-                     __DIR__.'/Fixtures/storage/public',
-                 ] as $directory) {
+            __DIR__.'/Fixtures',
+            __DIR__.'/Fixtures/storage',
+            __DIR__.'/Fixtures/storage/public',
+        ] as $directory) {
             if (! is_dir($directory)) {
                 mkdir($directory, 0777, true);
             }

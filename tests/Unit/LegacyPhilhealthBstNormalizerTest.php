@@ -1,5 +1,6 @@
 <?php
 
+use LBHurtado\SettlementEnvelope\Support\LegacyPhilhealthBstNormalizer;
 use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function () {
@@ -266,7 +267,7 @@ describe('future normalizer contract', function () {
     });
 
     test('normalizer class can be implemented later', function () {
-        expect(class_exists(\LBHurtado\SettlementEnvelope\Support\LegacyPhilhealthBstNormalizer::class))
+        expect(class_exists(LegacyPhilhealthBstNormalizer::class))
             ->toBeFalse();
     });
 

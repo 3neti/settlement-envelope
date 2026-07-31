@@ -2,6 +2,7 @@
 
 namespace LBHurtado\SettlementEnvelope\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
@@ -21,10 +22,10 @@ use Illuminate\Support\Facades\Storage;
  * @property int|null $uploaded_by
  * @property string $review_status
  * @property int|null $reviewer_id
- * @property \Carbon\Carbon|null $reviewed_at
+ * @property Carbon|null $reviewed_at
  * @property string|null $rejection_reason
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class EnvelopeAttachment extends Model
 {

@@ -2,6 +2,7 @@
 
 namespace LBHurtado\SettlementEnvelope\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -15,8 +16,8 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property string $source
  * @property int|null $actor_id
  * @property string|null $actor_type
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class EnvelopeSignal extends Model
 {

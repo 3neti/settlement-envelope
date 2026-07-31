@@ -1,5 +1,6 @@
 <?php
 
+use LBHurtado\SettlementEnvelope\Exceptions\PayloadValidationException;
 use LBHurtado\SettlementEnvelope\Services\PayloadValidator;
 
 beforeEach(function () {
@@ -232,7 +233,7 @@ describe('JSON Schema validation', function () {
         $invalidPayload = ['age' => 30]; // missing required 'name'
 
         expect(fn () => $this->validator->validate($invalidPayload, null, $schema))
-            ->toThrow(\LBHurtado\SettlementEnvelope\Exceptions\PayloadValidationException::class);
+            ->toThrow(PayloadValidationException::class);
     });
 
     test('passes validation when no schema provided', function () {

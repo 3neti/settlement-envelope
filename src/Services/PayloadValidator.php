@@ -4,7 +4,6 @@ namespace LBHurtado\SettlementEnvelope\Services;
 
 use Illuminate\Support\Facades\DB;
 use LBHurtado\SettlementEnvelope\Data\DriverData;
-use LBHurtado\SettlementEnvelope\Data\UniqueFieldConstraintData;
 use LBHurtado\SettlementEnvelope\Exceptions\PayloadValidationException;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Validator;
@@ -127,9 +126,10 @@ class PayloadValidator
     /**
      * Validate unique field constraints
      *
-     * @param array $payload Payload data to validate
-     * @param DriverData|null $driver Driver with constraints
-     * @param int|null $excludeEnvelopeId Envelope ID to exclude from uniqueness check (for updates)
+     * @param  array  $payload  Payload data to validate
+     * @param  DriverData|null  $driver  Driver with constraints
+     * @param  int|null  $excludeEnvelopeId  Envelope ID to exclude from uniqueness check (for updates)
+     *
      * @throws PayloadValidationException
      */
     public function validateUniqueConstraints(
@@ -168,7 +168,7 @@ class PayloadValidator
                 // Case-insensitive: database-specific JSON extraction
                 if ($connection === 'pgsql') {
                     $query->whereRaw(
-                        "LOWER(envelopes.payload->>'" . $constraint->field . "') = ?",
+                        "LOWER(envelopes.payload->>'".$constraint->field."') = ?",
                         [$compareValue]
                     );
                 } elseif ($connection === 'mysql') {

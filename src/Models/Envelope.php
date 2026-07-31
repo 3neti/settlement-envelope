@@ -2,6 +2,7 @@
 
 namespace LBHurtado\SettlementEnvelope\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -23,11 +24,11 @@ use Spatie\LaravelData\WithData;
  * @property EnvelopeStatus $status
  * @property array|null $context
  * @property array|null $gates_cache
- * @property \Carbon\Carbon|null $locked_at
- * @property \Carbon\Carbon|null $settled_at
- * @property \Carbon\Carbon|null $cancelled_at
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon|null $locked_at
+ * @property Carbon|null $settled_at
+ * @property Carbon|null $cancelled_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class Envelope extends Model
 {

@@ -10,6 +10,7 @@ use LBHurtado\SettlementEnvelope\Data\FormFlowMappingData;
 use LBHurtado\SettlementEnvelope\Exceptions\CircularDependencyException;
 use LBHurtado\SettlementEnvelope\Exceptions\DriverNotFoundException;
 use LBHurtado\SettlementEnvelope\Exceptions\InvalidDriverException;
+use LBHurtado\SettlementEnvelope\Models\Envelope;
 use Symfony\Component\Yaml\Yaml;
 use Throwable;
 
@@ -504,7 +505,7 @@ class DriverService
      */
     public function getUsageCount(string $driverId, string $version): int
     {
-        return \LBHurtado\SettlementEnvelope\Models\Envelope::where('driver_id', $driverId)
+        return Envelope::where('driver_id', $driverId)
             ->where('driver_version', $version)
             ->count();
     }

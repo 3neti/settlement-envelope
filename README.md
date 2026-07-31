@@ -5,8 +5,10 @@ A driver-based evidence envelope system for settlement gating. This package prov
 ## Installation
 
 ```bash
-composer require 3neti/settlement-envelope
+composer require 3neti/settlement-envelope:^1.2
 ```
+
+The current release supports Laravel 12 and 13 on PHP 8.3 and 8.4.
 
 ## Core Concepts
 
