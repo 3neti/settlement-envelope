@@ -32,6 +32,90 @@ class DriverService
         return Storage::disk($this->driverDisk);
     }
 
+    public function loadExact(string $driverId, string $version, bool $requireWorkflow = false): DriverData
+    {
+        $data = $this->loadExactData($driverId, $version, requireWorkflow: $requireWorkflow);
+
+        return $this->parseDriver($data, $driverId);
+    }
+
+    /** @return list<array{id: string, version: string}> */
+    public function workflowReferences(): array
+    {
+        $references = [];
+        foreach ($this->list() as $file) {
+            $content = $this->disk()->get($file['path']);
+            if (strlen($content) > 1048576) {
+                throw new InvalidDriverException('Driver definition is too large.');
+            }
+            try {
+                $data = Yaml::parse($content);
+            } catch (Throwable) {
+                throw new InvalidDriverException('Invalid driver YAML.');
+            }
+            if (! is_array($data) || ! array_key_exists('workflow', $data)) {
+                continue;
+            }
+            $id = $data['driver']['id'] ?? null;
+            $version = $data['driver']['version'] ?? null;
+            if (! is_string($id) || ! is_string($version) || $id !== $file['id']
+                || ($file['path'] !== $id.'.yaml' && $version !== $file['version'])) {
+                throw new InvalidDriverException('Exact driver identity does not match.');
+            }
+            $references[$id.'@'.$version] = ['id' => $id, 'version' => $version];
+        }
+
+        return array_values($references);
+    }
+
+    protected function loadExactData(string $driverId, string $version, array $stack = [], bool $requireWorkflow = false): array
+    {
+        if (! preg_match('/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/D', $driverId) || strlen($driverId) > 100 || ! preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?$/D', $version) || strlen($version) > 60) {
+            throw new InvalidDriverException('Invalid exact driver reference.');
+        }
+        $key = $driverId.'@'.$version;
+        if (in_array($key, $stack, true) || count($stack) >= 16) {
+            throw new InvalidDriverException('Invalid workflow driver inheritance.');
+        }
+        $path = "{$driverId}/v{$version}.yaml";
+        if (! $this->disk()->exists($path)) {
+            $path = "{$driverId}.yaml";
+        }
+        if (! $this->disk()->exists($path)) {
+            throw new DriverNotFoundException('Exact driver version is unavailable.');
+        }
+        $content = $this->disk()->get($path);
+        if (strlen($content) > 1048576) {
+            throw new InvalidDriverException('Driver definition is too large.');
+        }
+        try {
+            $data = Yaml::parse($content);
+        } catch (Throwable) {
+            throw new InvalidDriverException('Invalid driver YAML.');
+        }
+        if (! is_array($data) || ($data['driver']['id'] ?? null) !== $driverId || ($data['driver']['version'] ?? null) !== $version) {
+            throw new InvalidDriverException('Exact driver identity does not match.');
+        }
+        if ($requireWorkflow && ! array_key_exists('workflow', $data)) {
+            throw new DriverNotFoundException('Workflow is unavailable.');
+        }
+        $parents = $data['extends'] ?? [];
+        if (! is_array($parents) || ! array_is_list($parents) || count($parents) > 8) {
+            throw new InvalidDriverException('Invalid workflow driver inheritance.');
+        }
+        $merged = [];
+        foreach ($parents as $parent) {
+            if (! is_string($parent) || substr_count($parent, '@') !== 1) {
+                throw new InvalidDriverException('Workflow parents require exact versions.');
+            }
+            [$parentId, $parentVersion] = explode('@', $parent);
+            $merged = $this->mergeDrivers($merged, $this->loadExactData($parentId, $parentVersion, [...$stack, $key]));
+        }
+        unset($data['extends']);
+
+        return $this->mergeDrivers($merged, $data);
+    }
+
     /**
      * Load a driver by ID and optional version
      */
@@ -163,6 +247,12 @@ class DriverService
         }
 
         $result = $base;
+
+        if (array_key_exists('workflow', $overlay)) {
+            $result['workflow'] = is_array($overlay['workflow']) && is_array($base['workflow'] ?? null)
+                ? array_merge($base['workflow'], $overlay['workflow'])
+                : $overlay['workflow'];
+        }
 
         // Merge driver metadata (overlay wins)
         if (isset($overlay['driver'])) {
@@ -331,6 +421,9 @@ class DriverService
             'ui' => $data['ui'] ?? null,
             'form_flow_mapping' => FormFlowMappingData::fromArray($data['form_flow_mapping'] ?? null),
             'scanner' => $data['scanner'] ?? null,
+            'workflow' => array_key_exists('workflow', $data)
+                ? (new WorkflowDefinitionParser)->parse($data['workflow'])->toArray()
+                : null,
         ]);
     }
 

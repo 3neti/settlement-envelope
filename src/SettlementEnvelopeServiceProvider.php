@@ -4,15 +4,22 @@ namespace LBHurtado\SettlementEnvelope;
 
 use Illuminate\Support\ServiceProvider;
 use LBHurtado\SettlementEnvelope\Console\InstallDriversCommand;
+use LBHurtado\SettlementEnvelope\Contracts\WorkflowAccessPolicy;
+use LBHurtado\SettlementEnvelope\Contracts\WorkflowCatalog;
+use LBHurtado\SettlementEnvelope\Services\DenyWorkflowAccess;
 use LBHurtado\SettlementEnvelope\Services\DriverService;
 use LBHurtado\SettlementEnvelope\Services\EnvelopeService;
 use LBHurtado\SettlementEnvelope\Services\GateEvaluator;
 use LBHurtado\SettlementEnvelope\Services\PayloadValidator;
+use LBHurtado\SettlementEnvelope\Services\YamlWorkflowCatalog;
 
 class SettlementEnvelopeServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->bindIf(WorkflowAccessPolicy::class, DenyWorkflowAccess::class);
+        $this->app->bindIf(WorkflowCatalog::class, YamlWorkflowCatalog::class);
+
         $this->mergeConfigFrom(
             __DIR__.'/../config/settlement-envelope.php',
             'settlement-envelope'

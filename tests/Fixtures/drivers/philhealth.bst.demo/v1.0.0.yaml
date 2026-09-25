@@ -1,0 +1,105 @@
+# Demonstration requirements only; not official PhilHealth policy.
+# Separate identity preserves both the legacy fixture and shipped philhealth-bst driver.
+driver:
+  id: philhealth.bst.demo
+  version: 1.0.0
+  title: PhilHealth BST Gate1 Demonstration
+  description: Synthetic evidence-readiness demonstration, not benefit approval or payout authority.
+  domain: testing
+  issuer_type: voucher
+
+payload:
+  schema:
+    id: philhealth.bst.demo.v1
+    format: json_schema
+    inline:
+      type: object
+      required: [patient_name, patient_mobile, reference]
+      properties:
+        patient_name:
+          type: string
+          minLength: 1
+        patient_mobile:
+          type: string
+          minLength: 1
+        reference:
+          type: string
+          pattern: '^[A-Za-z0-9-]+$'
+          minLength: 3
+          maxLength: 50
+  storage:
+    mode: versioned
+    patch_strategy: merge
+  constraints:
+    unique_fields:
+      - field: reference
+        scope: global
+        case_sensitive: false
+        message: 'Demo claim reference {value} has already been issued'
+
+documents:
+  registry:
+    - type: CLAIM_FORM
+      title: Demo Claim Form
+      allowed_mimes: [application/pdf, image/jpeg, image/png]
+      max_size_mb: 5
+      multiple: false
+    - type: HOSPITAL_BILL
+      title: Demo Hospital Bill
+      allowed_mimes: [application/pdf, image/jpeg, image/png]
+      max_size_mb: 5
+      multiple: false
+
+checklist:
+  template:
+    - key: patient_name
+      label: Patient name provided
+      kind: payload_field
+      payload_pointer: /patient_name
+      required: true
+      review: none
+    - key: patient_mobile
+      label: Patient mobile provided
+      kind: payload_field
+      payload_pointer: /patient_mobile
+      required: true
+      review: none
+    - key: claim_reference
+      label: Demo claim reference provided
+      kind: payload_field
+      payload_pointer: /reference
+      required: true
+      review: none
+    - key: claim_form
+      label: Demo claim form submitted
+      kind: document
+      doc_type: CLAIM_FORM
+      required: true
+      review: none
+    - key: hospital_bill
+      label: Demo hospital bill submitted
+      kind: document
+      doc_type: HOSPITAL_BILL
+      required: true
+      review: none
+
+# The trusted host sets this signal separately from submitted payload/evidence.
+# Caller authorization and amount provenance remain host responsibilities.
+signals:
+  definitions:
+    - key: amount_verified
+      type: boolean
+      source: host
+      default: false
+
+gates:
+  definitions:
+    - key: settleable
+      rule: checklist.required_accepted && signal.amount_verified
+
+audit:
+  enabled: true
+  capture: [payload_patch, attachment_upload, attachment_review, signal_set, gate_change]
+
+manifest:
+  enabled: false

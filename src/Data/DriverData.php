@@ -34,6 +34,7 @@ class DriverData extends Data
         public ?array $ui = null,
         public ?FormFlowMappingData $form_flow_mapping = null,
         public ?array $scanner = null,
+        public ?WorkflowDefinitionData $workflow = null,
     ) {}
 
     public function getDriverKey(): string

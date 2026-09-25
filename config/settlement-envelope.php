@@ -2,6 +2,11 @@
 
 return [
 
+    // Named private HTTP connection profiles. Discovery checks configuration only.
+    // Supported keys: driver=http, base_url=https://..., auth={type:none|bearer, token?},
+    // connect_timeout and timeout (positive integer seconds, maximum 120).
+    'connections' => [],
+
     /*
     |--------------------------------------------------------------------------
     | Driver Storage Disk
