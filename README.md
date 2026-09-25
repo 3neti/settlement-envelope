@@ -10,6 +10,22 @@ composer require 3neti/settlement-envelope:^1.2
 
 The current release supports Laravel 12 and 13 on PHP 8.3 and 8.4.
 
+### Package-owned drivers (unreleased)
+
+Integration packages may register bundled resources from their service provider without publishing host copies:
+
+```php
+use LBHurtado\SettlementEnvelope\Services\DriverSourceRegistry;
+
+$this->callAfterResolving(DriverSourceRegistry::class, function (DriverSourceRegistry $sources): void {
+    $sources->register('vendor/integration', __DIR__.'/../resources/drivers');
+});
+```
+
+Each source contains `{driver-id}/v{version}.yaml`; IDs and versions must match the YAML `driver` metadata. Relative external JSON schemas resolve within that driver's source directory; traversal, remote URLs, symlink escapes, and resources over 1 MiB are rejected. Schemas are materialized before inheritance so parent schemas retain their own source. Registration and discovery only read resources: they never resolve adapters or execute transactions.
+
+`DriverService::list()`, `workflowReferences()`, `load()`, and `loadExact()` combine registered sources with the configured host disk. `list()` includes a `source` name (`host` for host files). Identical definitions deduplicate; conflicting exact IDs/versions fail closed. Deliberate host replacements require an exact allowlist entry in `settlement-envelope.driver_host_overrides`, for example `['aui.purchase@1.0.0']`. Package-to-package conflicts always fail. Existing flat host files remain supported; legacy files without workflow metadata do not enter the workflow catalog. An explicitly requested missing version never silently selects another version. Package-aware cache keys include source identity, definitions, and schemas, so old host cache entries cannot shadow bundled resources. Registry state belongs to the application container, not a static global.
+
 ## Core Concepts
 
 - **Envelope**: A container bound to a settlement reference (e.g., voucher code, loan ID)

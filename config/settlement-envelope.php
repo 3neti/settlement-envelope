@@ -19,6 +19,9 @@ return [
 
     'driver_disk' => env('ENVELOPE_DRIVER_DISK', 'envelope-drivers'),
 
+    // Exact id@version references where host YAML may override package definitions.
+    'driver_host_overrides' => [],
+
     /*
     |--------------------------------------------------------------------------
     | Storage Disk

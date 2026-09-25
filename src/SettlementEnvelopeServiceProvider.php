@@ -8,6 +8,7 @@ use LBHurtado\SettlementEnvelope\Contracts\WorkflowAccessPolicy;
 use LBHurtado\SettlementEnvelope\Contracts\WorkflowCatalog;
 use LBHurtado\SettlementEnvelope\Services\DenyWorkflowAccess;
 use LBHurtado\SettlementEnvelope\Services\DriverService;
+use LBHurtado\SettlementEnvelope\Services\DriverSourceRegistry;
 use LBHurtado\SettlementEnvelope\Services\EnvelopeService;
 use LBHurtado\SettlementEnvelope\Services\GateEvaluator;
 use LBHurtado\SettlementEnvelope\Services\PayloadValidator;
@@ -25,9 +26,11 @@ class SettlementEnvelopeServiceProvider extends ServiceProvider
             'settlement-envelope'
         );
 
+        $this->app->singleton(DriverSourceRegistry::class);
         $this->app->singleton(DriverService::class, function ($app) {
             return new DriverService(
-                config('settlement-envelope.driver_disk')
+                config('settlement-envelope.driver_disk'),
+                $app->make(DriverSourceRegistry::class)
             );
         });
 

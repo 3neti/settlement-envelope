@@ -19,9 +19,11 @@ class DriverService
     protected array $loadedDrivers = [];
 
     public function __construct(
-        protected ?string $driverDisk = null
+        protected ?string $driverDisk = null,
+        protected ?DriverSourceRegistry $sources = null
     ) {
         $this->driverDisk = $driverDisk ?? config('settlement-envelope.driver_disk');
+        $this->sources ??= app(DriverSourceRegistry::class);
     }
 
     /**
@@ -30,6 +32,114 @@ class DriverService
     protected function disk(): Filesystem
     {
         return Storage::disk($this->driverDisk);
+    }
+
+    protected function readSource(string $source, string $path): string
+    {
+        if ($path === '' || str_contains($path, '..') || ! preg_match('~^[a-zA-Z0-9_./-]+$~D', $path) || str_starts_with($path, '/')) {
+            throw new InvalidDriverException('Invalid driver resource path.');
+        }
+        $content = $source === 'host' ? $this->disk()->get($path) : $this->sources->read($source, $path);
+        if (! is_string($content) || strlen($content) > 1048576) {
+            throw new InvalidDriverException('Invalid or oversized driver resource.');
+        }
+
+        return $content;
+    }
+
+    /** @return list<array{id: string, version: string, path: string, source: string, data: array}> */
+    protected function definitions(): array
+    {
+        $files = [];
+        foreach ($this->sources->roots() as $source => $root) {
+            foreach (glob($root.'/*/*.yaml') ?: [] as $path) {
+                $files[] = ['id' => basename(dirname($path)), 'version' => substr(basename($path, '.yaml'), 1), 'path' => substr($path, strlen($root) + 1), 'source' => $source];
+            }
+        }
+        foreach ($this->hostFiles() as $file) {
+            $files[] = [...$file, 'source' => 'host'];
+        }
+        $definitions = [];
+        foreach ($files as $file) {
+            try {
+                $data = Yaml::parse($this->readSource($file['source'], $file['path']));
+            } catch (Throwable $exception) {
+                throw new InvalidDriverException('Invalid driver YAML.', previous: $exception);
+            }
+            if (is_array($data) && $file['source'] === 'host' && ! isset($data['driver']) && ! array_key_exists('workflow', $data)) {
+                if (isset($definitions[$file['id'].'@'.$file['version']])) {
+                    throw new InvalidDriverException('Legacy host definition conflicts with a registered driver.');
+                }
+                $definitions[$file['id'].'@'.$file['version']] = [...$file, 'data' => $data];
+
+                continue;
+            }
+            if (is_array($data) && $file['source'] === 'host' && ! array_key_exists('workflow', $data) && is_array($data['driver'] ?? null)) {
+                $data['driver']['id'] ??= $file['id'];
+                $data['driver']['version'] ??= '1.0.0';
+            }
+            $id = $data['driver']['id'] ?? null;
+            $version = $data['driver']['version'] ?? null;
+            if (! is_string($id) || ! is_string($version) || ! preg_match('/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/D', $id) || strlen($id) > 100 || ! preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?$/D', $version) || strlen($version) > 60 || $id !== $file['id'] || ($file['path'] !== $id.'.yaml' && $file['path'] !== $id.'/v'.$version.'.yaml')) {
+                throw new InvalidDriverException('Exact driver identity does not match.');
+            }
+            $uri = $data['payload']['schema']['uri'] ?? null;
+            if ($uri !== null && ! isset($data['payload']['schema']['inline'])) {
+                if (! is_string($uri) || ! preg_match('~^[a-zA-Z0-9_][a-zA-Z0-9_./-]*$~D', $uri) || str_contains($uri, '..')) {
+                    throw new InvalidDriverException('Invalid schema resource path.');
+                }
+                $schemaPath = $id.'/'.$uri;
+                if ($file['source'] !== 'host' || $this->disk()->exists($schemaPath)) {
+                    try {
+                        $schema = json_decode($this->readSource($file['source'], $schemaPath), true, 512, JSON_THROW_ON_ERROR);
+                    } catch (Throwable $exception) {
+                        throw new InvalidDriverException('Invalid driver schema.', previous: $exception);
+                    }
+                    if (! is_array($schema)) {
+                        throw new InvalidDriverException('Invalid driver schema.');
+                    }
+                    $data['payload']['schema']['inline'] = $schema;
+                }
+            }
+            $key = $id.'@'.$version;
+            if (isset($definitions[$key])) {
+                if ($this->canonicalDefinition($definitions[$key]['data']) === $this->canonicalDefinition($data)) {
+                    continue;
+                }
+                if ($file['source'] !== 'host' || ! in_array($key, config('settlement-envelope.driver_host_overrides', []), true)) {
+                    throw new InvalidDriverException("Conflicting driver definition: {$key}");
+                }
+            }
+            $definitions[$key] = [...$file, 'version' => $version, 'data' => $data];
+        }
+        ksort($definitions);
+
+        return array_values($definitions);
+    }
+
+    protected function canonicalDefinition(array $data): array
+    {
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $data[$key] = $this->canonicalDefinition($value);
+            }
+        }
+        if (! array_is_list($data)) {
+            ksort($data);
+        }
+
+        return $data;
+    }
+
+    protected function definition(string $id, ?string $version): array
+    {
+        $matches = array_values(array_filter($this->definitions(), fn (array $entry): bool => $entry['id'] === $id && ($version === null || $entry['version'] === $version)));
+        if ($matches === []) {
+            throw new DriverNotFoundException('Exact driver version is unavailable.');
+        }
+        usort($matches, fn (array $left, array $right): int => version_compare($right['version'], $left['version']));
+
+        return $matches[0];
     }
 
     public function loadExact(string $driverId, string $version, bool $requireWorkflow = false): DriverData
@@ -43,8 +153,8 @@ class DriverService
     public function workflowReferences(): array
     {
         $references = [];
-        foreach ($this->list() as $file) {
-            $content = $this->disk()->get($file['path']);
+        foreach ($this->definitions() as $file) {
+            $content = $this->readSource($file['source'], $file['path']);
             if (strlen($content) > 1048576) {
                 throw new InvalidDriverException('Driver definition is too large.');
             }
@@ -77,22 +187,7 @@ class DriverService
         if (in_array($key, $stack, true) || count($stack) >= 16) {
             throw new InvalidDriverException('Invalid workflow driver inheritance.');
         }
-        $path = "{$driverId}/v{$version}.yaml";
-        if (! $this->disk()->exists($path)) {
-            $path = "{$driverId}.yaml";
-        }
-        if (! $this->disk()->exists($path)) {
-            throw new DriverNotFoundException('Exact driver version is unavailable.');
-        }
-        $content = $this->disk()->get($path);
-        if (strlen($content) > 1048576) {
-            throw new InvalidDriverException('Driver definition is too large.');
-        }
-        try {
-            $data = Yaml::parse($content);
-        } catch (Throwable) {
-            throw new InvalidDriverException('Invalid driver YAML.');
-        }
+        $data = $this->definition($driverId, $version)['data'];
         if (! is_array($data) || ($data['driver']['id'] ?? null) !== $driverId || ($data['driver']['version'] ?? null) !== $version) {
             throw new InvalidDriverException('Exact driver identity does not match.');
         }
@@ -122,6 +217,9 @@ class DriverService
     public function load(string $driverId, ?string $version = null): DriverData
     {
         $cacheKey = "envelope_driver:{$driverId}:{$version}";
+        if ($this->sources->roots() !== []) {
+            $cacheKey .= ':'.hash('sha256', serialize([$this->driverDisk, $this->sources->roots(), $this->definitions()]));
+        }
 
         // Check memory cache first
         if (isset($this->loadedDrivers[$cacheKey])) {
@@ -155,14 +253,7 @@ class DriverService
      */
     protected function loadFromFile(string $driverId, ?string $version = null): DriverData
     {
-        $path = $this->resolveDriverPath($driverId, $version);
-
-        if (! $this->disk()->exists($path)) {
-            throw new DriverNotFoundException("Driver not found: {$driverId}".($version ? "@{$version}" : ''));
-        }
-
-        $content = $this->disk()->get($path);
-        $data = Yaml::parse($content);
+        $data = $this->definition($driverId, $version)['data'];
 
         // Resolve extends composition if present
         if (isset($data['extends'])) {
@@ -203,9 +294,7 @@ class DriverService
             }
 
             // Load parent driver data (raw, not parsed)
-            $parentPath = $this->resolveDriverPath($parentId, $parentVersion);
-            $parentContent = $this->disk()->get($parentPath);
-            $parentData = Yaml::parse($parentContent);
+            $parentData = $this->definition($parentId, $parentVersion)['data'];
 
             // Recursively resolve parent's extends
             if (isset($parentData['extends'])) {
@@ -481,7 +570,7 @@ class DriverService
         if ($schemaConfig->uri) {
             $schemaPath = $driver->id.'/'.$schemaConfig->uri;
             if ($this->disk()->exists($schemaPath)) {
-                return json_decode($this->disk()->get($schemaPath), true);
+                return json_decode($this->readSource('host', $schemaPath), true);
             }
         }
 
@@ -492,6 +581,11 @@ class DriverService
      * List available drivers
      */
     public function list(): array
+    {
+        return array_map(fn (array $entry): array => array_intersect_key($entry, array_flip(['id', 'version', 'path', 'source'])), $this->definitions());
+    }
+
+    protected function hostFiles(): array
     {
         $drivers = [];
 
@@ -590,7 +684,13 @@ class DriverService
      */
     public function exists(string $driverId, string $version): bool
     {
-        return $this->disk()->exists("{$driverId}/v{$version}.yaml");
+        try {
+            $this->definition($driverId, $version);
+
+            return true;
+        } catch (DriverNotFoundException) {
+            return false;
+        }
     }
 
     /**
@@ -608,14 +708,7 @@ class DriverService
      */
     public function getRawExtends(string $driverId, string $version): array
     {
-        $path = $this->resolveDriverPath($driverId, $version);
-
-        if (! $this->disk()->exists($path)) {
-            return [];
-        }
-
-        $content = $this->disk()->get($path);
-        $data = Yaml::parse($content);
+        $data = $this->definition($driverId, $version)['data'];
 
         return $data['extends'] ?? [];
     }
