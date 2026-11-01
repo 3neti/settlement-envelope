@@ -80,6 +80,28 @@ test('uploadAttachment rejects disallowed mime types', function () {
         ->toThrow(DocumentTypeNotAllowedException::class);
 });
 
+test('upload rechecks the envelope state inside the transaction', function () {
+    $service = app(EnvelopeService::class);
+    $stale = makeSimpleEnvelope($service, 'WF-STALE-UPLOAD');
+    Envelope::query()->whereKey($stale->id)->update(['status' => EnvelopeStatus::LOCKED->value]);
+
+    expect(fn () => $service->uploadAttachment($stale, 'TEST_DOC', fakePdf()))
+        ->toThrow(EnvelopeNotEditableException::class);
+    expect($stale->attachments()->count())->toBe(0);
+});
+
+test('review rechecks the envelope state inside the transaction', function () {
+    $service = app(EnvelopeService::class);
+    $envelope = makeSimpleEnvelope($service, 'WF-STALE-REVIEW');
+    $attachment = $service->uploadAttachment($envelope, 'TEST_DOC', fakePdf());
+    $attachment->setRelation('envelope', $envelope);
+    Envelope::query()->whereKey($envelope->id)->update(['status' => EnvelopeStatus::LOCKED->value]);
+
+    expect(fn () => $service->reviewAttachment($attachment, 'accepted'))
+        ->toThrow(EnvelopeNotEditableException::class);
+    expect($attachment->fresh()->review_status)->toBe('pending');
+});
+
 test('reviewAttachment can accept and flips checklist item to accepted', function () {
     $service = app(EnvelopeService::class);
     $envelope = makeSimpleEnvelope($service, 'WF-REVIEW-001');

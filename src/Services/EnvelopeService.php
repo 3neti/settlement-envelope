@@ -167,12 +167,12 @@ class EnvelopeService
         // Validate file
         $this->validateFile($file, $docTypeConfig);
 
-        // Find checklist item
-        $checklistItem = $envelope->checklistItems()
-            ->where('doc_type', $docType)
-            ->first();
-
-        return DB::transaction(function () use ($envelope, $docType, $file, $actor, $metadata, $checklistItem) {
+        return DB::transaction(function () use ($envelope, $docType, $file, $actor, $metadata) {
+            $envelope = Envelope::query()->lockForUpdate()->findOrFail($envelope->getKey());
+            if (! $envelope->canEdit()) {
+                throw new EnvelopeNotEditableException("Envelope {$envelope->reference_code} is not editable");
+            }
+            $checklistItem = $envelope->checklistItems()->where('doc_type', $docType)->first();
             // Store file
             $disk = config('settlement-envelope.storage_disk', 'public');
             $path = $file->store("envelopes/{$envelope->id}/{$docType}", $disk);
@@ -238,9 +238,13 @@ class EnvelopeService
             throw new EnvelopeNotEditableException("Envelope {$envelope->reference_code} is not editable");
         }
 
-        $oldStatus = $attachment->review_status;
-
-        DB::transaction(function () use ($attachment, $decision, $actor, $reason, $envelope, $oldStatus) {
+        DB::transaction(function () use ($attachment, $decision, $actor, $reason, $envelope) {
+            $envelope = Envelope::query()->lockForUpdate()->findOrFail($envelope->getKey());
+            if (! $envelope->canEdit()) {
+                throw new EnvelopeNotEditableException("Envelope {$envelope->reference_code} is not editable");
+            }
+            $attachment = $envelope->attachments()->findOrFail($attachment->getKey());
+            $oldStatus = $attachment->review_status;
             if ($decision === 'accepted') {
                 $attachment->accept($actor?->getKey());
             } else {
