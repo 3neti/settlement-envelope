@@ -47,7 +47,7 @@ final readonly class CreateContributionInvitation
                 'created_by' => $actor->getKey(),
                 'expires_at' => $expiresAt,
                 'password' => $password,
-                'metadata' => ['scope' => ['actions' => ['upload'], 'document_types' => $documentTypes]],
+                'metadata' => ['scope' => ['actions' => ['upload', 'read_own'], 'document_types' => $documentTypes]],
             ]);
             EnvelopeAuditLog::log($locked, EnvelopeAuditLog::ACTION_CONTRIBUTION_TOKEN_CREATED, actor: $actor, after: [
                 'token_id' => $token->getKey(), 'document_types' => $documentTypes, 'expires_at' => $expiresAt->toIso8601String(),
