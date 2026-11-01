@@ -1,13 +1,18 @@
 <?php
 
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use LBHurtado\SettlementEnvelope\Enums\EnvelopeStatus;
 use LBHurtado\SettlementEnvelope\Exceptions\DocumentTypeNotAllowedException;
 use LBHurtado\SettlementEnvelope\Exceptions\EnvelopeNotEditableException;
 use LBHurtado\SettlementEnvelope\Exceptions\EnvelopeNotSettleableException;
 use LBHurtado\SettlementEnvelope\Models\Envelope;
+use LBHurtado\SettlementEnvelope\Models\EnvelopeContributionToken;
 use LBHurtado\SettlementEnvelope\Services\EnvelopeService;
+use LBHurtado\SettlementEnvelope\Services\UploadInvitedContribution;
 
 function makeSimpleEnvelope(EnvelopeService $service, string $ref = 'WF-001'): Envelope
 {
@@ -88,6 +93,32 @@ test('upload rechecks the envelope state inside the transaction', function () {
     expect(fn () => $service->uploadAttachment($stale, 'TEST_DOC', fakePdf()))
         ->toThrow(EnvelopeNotEditableException::class);
     expect($stale->attachments()->count())->toBe(0);
+});
+
+test('invited upload enforces scope and assigns contributor identity on the server', function () {
+    Schema::create('users', function (Blueprint $table): void {
+        $table->id();
+    });
+    Storage::fake('local');
+    $envelope = makeSimpleEnvelope(app(EnvelopeService::class), 'WF-INVITED-UPLOAD');
+    $token = EnvelopeContributionToken::query()->create([
+        'envelope_id' => $envelope->id,
+        'expires_at' => now()->addHour(),
+        'metadata' => ['scope' => ['actions' => ['upload'], 'document_types' => ['TEST_DOC']]],
+    ]);
+    $upload = app(UploadInvitedContribution::class);
+
+    expect(fn () => $upload->handle($envelope, $token, 'WRONG_DOC', fakePdf()))
+        ->toThrow(AuthorizationException::class);
+    expect($envelope->attachments()->count())->toBe(0);
+
+    $attachment = $upload->handle($envelope, $token, 'TEST_DOC', fakePdf());
+    expect($attachment->disk)->toBe('local')
+        ->and($attachment->metadata)->toMatchArray([
+            'contributor_role' => 'invited', 'contribution_token_id' => $token->id,
+        ])
+        ->and($token->fresh()->use_count)->toBe(1);
+    Storage::disk('local')->assertExists($attachment->file_path);
 });
 
 test('review rechecks the envelope state inside the transaction', function () {

@@ -151,7 +151,8 @@ class EnvelopeService
         string $docType,
         UploadedFile $file,
         ?Model $actor = null,
-        ?array $metadata = null
+        ?array $metadata = null,
+        ?string $storageDisk = null,
     ): EnvelopeAttachment {
         if (! $envelope->canEdit()) {
             throw new EnvelopeNotEditableException("Envelope {$envelope->reference_code} is not editable");
@@ -167,14 +168,14 @@ class EnvelopeService
         // Validate file
         $this->validateFile($file, $docTypeConfig);
 
-        return DB::transaction(function () use ($envelope, $docType, $file, $actor, $metadata) {
+        return DB::transaction(function () use ($envelope, $docType, $file, $actor, $metadata, $storageDisk) {
             $envelope = Envelope::query()->lockForUpdate()->findOrFail($envelope->getKey());
             if (! $envelope->canEdit()) {
                 throw new EnvelopeNotEditableException("Envelope {$envelope->reference_code} is not editable");
             }
             $checklistItem = $envelope->checklistItems()->where('doc_type', $docType)->first();
             // Store file
-            $disk = config('settlement-envelope.storage_disk', 'public');
+            $disk = $storageDisk ?? config('settlement-envelope.storage_disk', 'public');
             $path = $file->store("envelopes/{$envelope->id}/{$docType}", $disk);
             $hash = hash_file('sha256', $file->getPathname());
 
