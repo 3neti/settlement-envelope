@@ -28,8 +28,8 @@ final readonly class UploadInvitedContribution
         bool $passwordVerified = false,
     ): EnvelopeAttachment {
         $disk = (string) config('settlement-envelope.contribution_storage_disk', 'local');
-        if (config("filesystems.disks.{$disk}.visibility") === 'public') {
-            throw new RuntimeException('Contribution storage must be private.');
+        if (config("filesystems.disks.{$disk}.visibility") !== 'private') {
+            throw new RuntimeException('Contribution storage must be explicitly configured as private.');
         }
 
         return DB::transaction(function () use ($envelope, $token, $documentType, $file, $passwordVerified, $disk): EnvelopeAttachment {
