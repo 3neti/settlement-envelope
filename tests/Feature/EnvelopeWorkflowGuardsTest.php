@@ -194,6 +194,17 @@ test('reviewAttachment can reject and flips checklist item to rejected', functio
         ->and($item->status->value)->toBe('rejected');
 });
 
+test('pending-only review cannot replace a prior review decision', function () {
+    $service = app(EnvelopeService::class);
+    $envelope = makeSimpleEnvelope($service, 'WF-REVIEW-ONCE');
+    $attachment = $service->uploadAttachment($envelope, 'TEST_DOC', fakePdf());
+    $service->reviewAttachment($attachment, 'rejected', reason: 'Please resubmit', requirePending: true);
+
+    expect(fn () => $service->reviewAttachment($attachment, 'accepted', requirePending: true))
+        ->toThrow(LogicException::class);
+    expect($attachment->fresh()->review_status)->toBe('rejected');
+});
+
 test('ready_to_settle requires doc accepted + required signals satisfied', function () {
     $service = app(EnvelopeService::class);
     $envelope = makeSimpleEnvelope($service, 'WF-STATE-001');

@@ -25,7 +25,7 @@ final readonly class UploadInvitedContribution
         EnvelopeContributionToken $token,
         string $documentType,
         UploadedFile $file,
-        bool $passwordVerified = false,
+        bool|\Closure $passwordVerified = false,
     ): EnvelopeAttachment {
         $disk = (string) config('settlement-envelope.contribution_storage_disk', 'local');
         if (config("filesystems.disks.{$disk}.visibility") !== 'private') {
@@ -36,7 +36,8 @@ final readonly class UploadInvitedContribution
             $lockedEnvelope = Envelope::query()->lockForUpdate()->findOrFail($envelope->getKey());
             $lockedToken = EnvelopeContributionToken::query()->lockForUpdate()->findOrFail($token->getKey());
 
-            if (! $this->access->canUpload($lockedToken, $lockedEnvelope, $documentType, $passwordVerified)) {
+            $verified = $passwordVerified instanceof \Closure ? $passwordVerified($lockedToken) === true : $passwordVerified;
+            if (! $this->access->canUpload($lockedToken, $lockedEnvelope, $documentType, $verified)) {
                 throw new AuthorizationException('Contribution is not authorized.');
             }
 

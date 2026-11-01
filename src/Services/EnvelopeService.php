@@ -231,7 +231,8 @@ class EnvelopeService
         EnvelopeAttachment $attachment,
         string $decision,
         ?Model $actor = null,
-        ?string $reason = null
+        ?string $reason = null,
+        bool $requirePending = false,
     ): void {
         $envelope = $attachment->envelope;
 
@@ -239,12 +240,15 @@ class EnvelopeService
             throw new EnvelopeNotEditableException("Envelope {$envelope->reference_code} is not editable");
         }
 
-        DB::transaction(function () use ($attachment, $decision, $actor, $reason, $envelope) {
+        DB::transaction(function () use ($attachment, $decision, $actor, $reason, $envelope, $requirePending) {
             $envelope = Envelope::query()->lockForUpdate()->findOrFail($envelope->getKey());
             if (! $envelope->canEdit()) {
                 throw new EnvelopeNotEditableException("Envelope {$envelope->reference_code} is not editable");
             }
             $attachment = $envelope->attachments()->findOrFail($attachment->getKey());
+            if ($requirePending && $attachment->review_status !== 'pending') {
+                throw new \LogicException('The document has already been reviewed.');
+            }
             $oldStatus = $attachment->review_status;
             if ($decision === 'accepted') {
                 $attachment->accept($actor?->getKey());
