@@ -34,6 +34,9 @@ return [
 
     'storage_disk' => env('ENVELOPE_STORAGE_DISK', 'public'),
 
+    // Participant and issuer contributions must use an explicitly private disk.
+    'contribution_storage_disk' => env('ENVELOPE_CONTRIBUTION_STORAGE_DISK', 'local'),
+
     /*
     |--------------------------------------------------------------------------
     | Audit Log
