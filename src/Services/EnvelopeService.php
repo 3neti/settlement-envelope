@@ -5,6 +5,7 @@ namespace LBHurtado\SettlementEnvelope\Services;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use LBHurtado\SettlementEnvelope\Data\DriverData;
 use LBHurtado\SettlementEnvelope\Enums\ChecklistItemKind;
 use LBHurtado\SettlementEnvelope\Enums\ChecklistItemStatus;
@@ -153,6 +154,8 @@ class EnvelopeService
         ?Model $actor = null,
         ?array $metadata = null,
         ?string $storageDisk = null,
+        ?string $documentId = null,
+        ?string $auditReference = null,
     ): EnvelopeAttachment {
         if (! $envelope->canEdit()) {
             throw new EnvelopeNotEditableException("Envelope {$envelope->reference_code} is not editable");
@@ -168,60 +171,80 @@ class EnvelopeService
         // Validate file
         $this->validateFile($file, $docTypeConfig);
 
-        return DB::transaction(function () use ($envelope, $docType, $file, $actor, $metadata, $storageDisk) {
-            $envelope = Envelope::query()->lockForUpdate()->findOrFail($envelope->getKey());
-            if (! $envelope->canEdit()) {
-                throw new EnvelopeNotEditableException("Envelope {$envelope->reference_code} is not editable");
+        $storedDisk = null;
+        $storedPath = null;
+        try {
+            return DB::transaction(function () use ($envelope, $docType, $file, $actor, $metadata, $storageDisk, $documentId, $auditReference, &$storedDisk, &$storedPath) {
+                $envelope = Envelope::query()->lockForUpdate()->findOrFail($envelope->getKey());
+                if (! $envelope->canEdit()) {
+                    throw new EnvelopeNotEditableException("Envelope {$envelope->reference_code} is not editable");
+                }
+                if (($documentId !== null && $envelope->attachments()->where('document_id', $documentId)->exists())
+                    || ($auditReference !== null && $envelope->attachments()->where('audit_reference', $auditReference)->exists())) {
+                    throw new \InvalidArgumentException('The document identity or audit reference is already in use.');
+                }
+                $checklistItem = $envelope->checklistItems()->where('doc_type', $docType)->first();
+                // Store file
+                $disk = $storageDisk ?? config('settlement-envelope.storage_disk', 'public');
+                $path = $file->store("envelopes/{$envelope->id}/{$docType}", $disk);
+                if (! is_string($path)) {
+                    throw new \RuntimeException('The attachment could not be stored.');
+                }
+                $storedDisk = $disk;
+                $storedPath = $path;
+                $hash = hash_file('sha256', $file->getPathname());
+
+                // Determine initial review status based on checklist item's review_mode
+                // If review_mode is 'none', auto-accept the attachment
+                $reviewStatus = 'pending';
+                if ($checklistItem && $checklistItem->review_mode?->value === 'none') {
+                    $reviewStatus = 'accepted';
+                }
+
+                // Create attachment
+                $attachment = EnvelopeAttachment::create([
+                    'envelope_id' => $envelope->id,
+                    ...($documentId !== null ? ['document_id' => $documentId] : []),
+                    ...($auditReference !== null ? ['audit_reference' => $auditReference] : []),
+                    'checklist_item_id' => $checklistItem?->id,
+                    'doc_type' => $docType,
+                    'original_filename' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'disk' => $disk,
+                    'mime_type' => $file->getMimeType(),
+                    'size' => $file->getSize(),
+                    'hash' => $hash,
+                    'metadata' => $metadata,
+                    'uploaded_by' => $actor?->getKey(),
+                    'review_status' => $reviewStatus,
+                    'reviewed_at' => $reviewStatus === 'accepted' ? now() : null,
+                    'reviewed_by' => $reviewStatus === 'accepted' ? $actor?->getKey() : null,
+                ]);
+
+                // Update checklist item status
+                $checklistItem?->computeStatus();
+
+                // Recompute gates
+                $this->recomputeGates($envelope);
+
+                // Audit
+                $this->audit($envelope, EnvelopeAuditLog::ACTION_ATTACHMENT_UPLOAD, $actor, null, null, [
+                    'doc_type' => $docType,
+                    'filename' => $file->getClientOriginalName(),
+                    'hash' => $hash,
+                ]);
+
+                // Event
+                event(new AttachmentUploaded($envelope, $attachment, $actor));
+
+                return $attachment;
+            });
+        } catch (\Throwable $exception) {
+            if (is_string($storedDisk) && is_string($storedPath)) {
+                Storage::disk($storedDisk)->delete($storedPath);
             }
-            $checklistItem = $envelope->checklistItems()->where('doc_type', $docType)->first();
-            // Store file
-            $disk = $storageDisk ?? config('settlement-envelope.storage_disk', 'public');
-            $path = $file->store("envelopes/{$envelope->id}/{$docType}", $disk);
-            $hash = hash_file('sha256', $file->getPathname());
-
-            // Determine initial review status based on checklist item's review_mode
-            // If review_mode is 'none', auto-accept the attachment
-            $reviewStatus = 'pending';
-            if ($checklistItem && $checklistItem->review_mode?->value === 'none') {
-                $reviewStatus = 'accepted';
-            }
-
-            // Create attachment
-            $attachment = EnvelopeAttachment::create([
-                'envelope_id' => $envelope->id,
-                'checklist_item_id' => $checklistItem?->id,
-                'doc_type' => $docType,
-                'original_filename' => $file->getClientOriginalName(),
-                'file_path' => $path,
-                'disk' => $disk,
-                'mime_type' => $file->getMimeType(),
-                'size' => $file->getSize(),
-                'hash' => $hash,
-                'metadata' => $metadata,
-                'uploaded_by' => $actor?->getKey(),
-                'review_status' => $reviewStatus,
-                'reviewed_at' => $reviewStatus === 'accepted' ? now() : null,
-                'reviewed_by' => $reviewStatus === 'accepted' ? $actor?->getKey() : null,
-            ]);
-
-            // Update checklist item status
-            $checklistItem?->computeStatus();
-
-            // Recompute gates
-            $this->recomputeGates($envelope);
-
-            // Audit
-            $this->audit($envelope, EnvelopeAuditLog::ACTION_ATTACHMENT_UPLOAD, $actor, null, null, [
-                'doc_type' => $docType,
-                'filename' => $file->getClientOriginalName(),
-                'hash' => $hash,
-            ]);
-
-            // Event
-            event(new AttachmentUploaded($envelope, $attachment, $actor));
-
-            return $attachment;
-        });
+            throw $exception;
+        }
     }
 
     /**

@@ -31,6 +31,8 @@ class EnvelopeAttachment extends Model
 {
     protected $fillable = [
         'envelope_id',
+        'document_id',
+        'audit_reference',
         'checklist_item_id',
         'doc_type',
         'original_filename',
