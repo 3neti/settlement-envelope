@@ -1,9 +1,60 @@
 <?php
 
+use Illuminate\Database\QueryException;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use LBHurtado\SettlementEnvelope\Enums\ChecklistItemStatus;
 use LBHurtado\SettlementEnvelope\Enums\EnvelopeStatus;
+use LBHurtado\SettlementEnvelope\Events\AttachmentUploaded;
 use LBHurtado\SettlementEnvelope\Models\Envelope;
+use LBHurtado\SettlementEnvelope\Models\EnvelopeAttachment;
 use LBHurtado\SettlementEnvelope\Services\EnvelopeService;
+
+test('document identities and audit references are unique within an envelope', function (string $changedField, string $changedValue) {
+    $envelope = app(EnvelopeService::class)->create(referenceCode: 'DOC-IDENTITY', driverId: 'simple.test');
+    $attachment = [
+        'envelope_id' => $envelope->getKey(), 'doc_type' => 'TEST_DOC',
+        'original_filename' => 'invoice.pdf', 'file_path' => 'invoice.pdf',
+        'disk' => 'local', 'mime_type' => 'application/pdf', 'size' => 1,
+        'hash' => str_repeat('a', 64), 'document_id' => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        'audit_reference' => 'CODE-DOC-001',
+    ];
+    EnvelopeAttachment::create($attachment);
+    $attachment[$changedField] = $changedValue;
+    expect(fn () => EnvelopeAttachment::create($attachment))
+        ->toThrow(QueryException::class);
+})->with([
+    'duplicate document ID' => ['audit_reference', 'CODE-DOC-002'],
+    'duplicate audit reference' => ['document_id', '01ARZ3NDEKTSV4RRFFQ69G5FAW'],
+]);
+
+test('upload persists a stable document identity and rejects a duplicate before storing', function () {
+    $service = app(EnvelopeService::class);
+    $envelope = $service->create(referenceCode: 'DOC-UPLOAD', driverId: 'simple.test');
+    $id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+    $file = UploadedFile::fake()->create('invoice.pdf', 10, 'application/pdf');
+    $attachment = $service->uploadAttachment($envelope, 'TEST_DOC', $file, documentId: $id, auditReference: 'DOC-UPLOAD-DOC-001');
+    expect($attachment->fresh()->document_id)->toBe($id)
+        ->and($attachment->audit_reference)->toBe('DOC-UPLOAD-DOC-001');
+    $another = UploadedFile::fake()->create('another.pdf', 10, 'application/pdf');
+    expect(fn () => $service->uploadAttachment($envelope, 'TEST_DOC', $another, documentId: $id))
+        ->toThrow(InvalidArgumentException::class);
+    expect($envelope->attachments()->count())->toBe(1);
+});
+
+test('removes the stored file when attachment event handling fails', function () {
+    Storage::fake('public');
+    Event::listen(AttachmentUploaded::class, function (): void {
+        throw new RuntimeException('failure');
+    });
+    $service = app(EnvelopeService::class);
+    $envelope = $service->create(referenceCode: 'DOC-FAILURE', driverId: 'simple.test');
+    $file = UploadedFile::fake()->create('invoice.pdf', 10, 'application/pdf');
+    expect(fn () => $service->uploadAttachment($envelope, 'TEST_DOC', $file))->toThrow(RuntimeException::class);
+    expect(Storage::disk('public')->allFiles('envelopes'))->toBe([])
+        ->and($envelope->attachments()->count())->toBe(0);
+});
 
 test('can create envelope with simple test driver', function () {
     $service = app(EnvelopeService::class);
