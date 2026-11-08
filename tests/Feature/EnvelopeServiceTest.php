@@ -11,6 +11,30 @@ use LBHurtado\SettlementEnvelope\Models\Envelope;
 use LBHurtado\SettlementEnvelope\Models\EnvelopeAttachment;
 use LBHurtado\SettlementEnvelope\Services\EnvelopeService;
 
+test('links one private stored document idempotently without copying it', function () {
+    Storage::fake('local');
+    config()->set('filesystems.disks.local.visibility', 'private');
+    Storage::disk('local')->put('uploads/evidence.pdf', '%PDF evidence', 'private');
+    $service = app(EnvelopeService::class);
+    $envelope = $service->create(referenceCode: 'DOC-LINK', driverId: 'simple.test');
+    $document = [
+        'document_id' => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        'doc_type' => 'TEST_DOC',
+        'original_filename' => 'evidence.pdf',
+        'disk' => 'local', 'file_path' => 'uploads/evidence.pdf',
+        'mime_type' => 'application/pdf', 'size' => 13,
+        'hash' => hash('sha256', '%PDF evidence'),
+    ];
+
+    $first = $service->attachStoredAttachment($envelope, $document);
+    $retry = $service->attachStoredAttachment($envelope, $document);
+
+    expect($retry->id)->toBe($first->id)
+        ->and($first->audit_reference)->toBe('DOC-LINK-DOC-001')
+        ->and($envelope->attachments()->count())->toBe(1)
+        ->and(Storage::disk('local')->allFiles())->toBe(['uploads/evidence.pdf']);
+});
+
 test('document identities and audit references are unique within an envelope', function (string $changedField, string $changedValue) {
     $envelope = app(EnvelopeService::class)->create(referenceCode: 'DOC-IDENTITY', driverId: 'simple.test');
     $attachment = [

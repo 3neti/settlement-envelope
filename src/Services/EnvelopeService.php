@@ -147,6 +147,91 @@ class EnvelopeService
     /**
      * Upload an attachment
      */
+    public function attachStoredAttachment(Envelope $envelope, array $document, ?Model $actor = null): EnvelopeAttachment
+    {
+        foreach (['document_id', 'doc_type', 'original_filename', 'disk', 'file_path', 'mime_type', 'hash'] as $field) {
+            if (! is_string($document[$field] ?? null) || trim($document[$field]) === '') {
+                throw new \InvalidArgumentException('Stored document metadata is invalid.');
+            }
+        }
+        if (! preg_match('/\A[0-9A-HJKMNP-TV-Z]{26}\z/', $document['document_id'])
+            || ! preg_match('/\A[a-f0-9]{64}\z/', $document['hash'])
+            || ! is_int($document['size'] ?? null) || $document['size'] < 1
+            || config('filesystems.disks.'.$document['disk'].'.visibility') === 'public') {
+            throw new \InvalidArgumentException('Stored document metadata is invalid.');
+        }
+        $disk = Storage::disk($document['disk']);
+        if (! $disk->exists($document['file_path']) || $disk->getVisibility($document['file_path']) !== 'private'
+            || $disk->size($document['file_path']) !== $document['size']) {
+            throw new \InvalidArgumentException('The stored document is unavailable.');
+        }
+        $stream = $disk->readStream($document['file_path']);
+        if (! is_resource($stream)) {
+            throw new \InvalidArgumentException('The stored document is unavailable.');
+        }
+        $hash = hash_init('sha256');
+        try {
+            hash_update_stream($hash, $stream);
+        } finally {
+            fclose($stream);
+        }
+        if (! hash_equals($document['hash'], hash_final($hash))) {
+            throw new \InvalidArgumentException('The stored document has changed.');
+        }
+
+        return DB::transaction(function () use ($envelope, $document, $actor): EnvelopeAttachment {
+            $envelope = Envelope::query()->lockForUpdate()->findOrFail($envelope->getKey());
+            $existing = $envelope->attachments()->where('document_id', $document['document_id'])->first();
+            if ($existing !== null) {
+                if (! hash_equals($existing->hash, $document['hash']) || $existing->file_path !== $document['file_path']
+                    || $existing->disk !== $document['disk'] || $existing->doc_type !== $document['doc_type']) {
+                    throw new \InvalidArgumentException('The document identity is already in use.');
+                }
+
+                return $existing;
+            }
+            if (! $envelope->canEdit()) {
+                throw new EnvelopeNotEditableException("Envelope {$envelope->reference_code} is not editable");
+            }
+            $docTypeConfig = $this->driverService->load($envelope->driver_id, $envelope->driver_version)->getDocumentType($document['doc_type']);
+            if (! $docTypeConfig) {
+                throw new DocumentTypeNotAllowedException("Document type {$document['doc_type']} is not allowed for this envelope");
+            }
+            if (! in_array($document['mime_type'], $docTypeConfig->allowed_mimes, true)
+                || $document['size'] > $docTypeConfig->max_size_mb * 1024 * 1024) {
+                throw new DocumentTypeNotAllowedException('The stored document does not meet the envelope file policy.');
+            }
+            $serial = $envelope->attachments()->count() + 1;
+            do {
+                $auditReference = sprintf('%s-DOC-%03d', $envelope->reference_code, $serial++);
+            } while ($envelope->attachments()->where('audit_reference', $auditReference)->exists());
+            $checklist = $envelope->checklistItems()->where('doc_type', $document['doc_type'])->first();
+            $attachment = EnvelopeAttachment::create([
+                'envelope_id' => $envelope->id,
+                'document_id' => $document['document_id'],
+                'audit_reference' => $auditReference,
+                'checklist_item_id' => $checklist?->id,
+                'doc_type' => $document['doc_type'],
+                'original_filename' => $document['original_filename'],
+                'disk' => $document['disk'], 'file_path' => $document['file_path'],
+                'mime_type' => $document['mime_type'], 'size' => $document['size'], 'hash' => $document['hash'],
+                'metadata' => $document['metadata'] ?? null,
+                'uploaded_by' => $actor?->getKey(), 'review_status' => 'pending',
+            ]);
+            $checklist?->computeStatus();
+            $this->recomputeGates($envelope);
+            $this->audit($envelope, EnvelopeAuditLog::ACTION_ATTACHMENT_UPLOAD, $actor, null, null, [
+                'doc_type' => $document['doc_type'], 'hash' => $document['hash'], 'document_id' => $document['document_id'],
+            ]);
+            event(new AttachmentUploaded($envelope, $attachment, $actor));
+
+            return $attachment;
+        });
+    }
+
+    /**
+     * Upload an attachment
+     */
     public function uploadAttachment(
         Envelope $envelope,
         string $docType,
